@@ -1,0 +1,14 @@
+{
+  "project_name": "Multi-Regional Sudanese LLM",
+  "version": "1.0.0",
+  "regions": ["khartoum", "darfur", "kordofan", "eastern", "northern"],
+  "model_config": {
+    "base_model": "Qwen/Qwen2.5-7B-Instruct",
+    "learning_rate": 0.00005,
+    "epochs": 3
+  },
+  "vector_db_config": {
+    "embedding_dim": 384,
+    "distance_metric": "cosine"
+  }
+}
