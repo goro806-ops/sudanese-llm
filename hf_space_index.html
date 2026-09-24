@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>المساعد الذكي اللهجات السودانية - Sudanese LLM</title>
+    <style>
+        :root {
+            --primary-color: #007a3d;
+            --secondary-color: #ce1126;
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --text-color: #1c2833;
+            --user-msg: #dcf8c6;
+            --bot-msg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        header p {
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1rem;
+            background: var(--card-bg);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        select {
+            padding: 8px 12px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            outline: none;
+            flex: 1;
+        }
+
+        .chat-box {
+            flex: 1;
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-y: auto;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 1rem;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            align-self: flex-start;
+            background-color: var(--user-msg);
+            border-bottom-right-radius: 2px;
+        }
+
+        .message.bot {
+            align-self: flex-end;
+            background-color: var(--bot-msg);
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 2px;
+        }
+
+        .message .region-tag {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-top: 1rem;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #005c2e;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🇸🇩 المساعد الذكي للهجات والثقافة السودانية</h1>
+        <p>Sudanese Regional LLM & RAG System</p>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            <label for="regionSelect" style="align-self: center; font-weight: bold;">اختر الإقليم / المنطقة:</label>
+            <select id="regionSelect">
+                <option value="Khartoum">الخرطوم (Khartoum)</option>
+                <option value="Darfur">دارفور (Darfur)</option>
+                <option value="Kordofan">كردفان (Kordofan)</option>
+                <option value="Eastern">الشرق (Eastern)</option>
+                <option value="Northern">الشمالية (Northern)</option>
+            </select>
+        </div>
+
+        <div class="chat-box" id="chatBox">
+            <div class="message bot">
+                <span class="region-tag">النظام</span>
+                مرحباً بك! أنا المساعد الذكي للهجات والثقافة السودانية. اختر الإقليم واسألني أي سؤال عن اللهجات المحلية، الأمثال، أو الثقافة.
+            </div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="اكتب سؤالك هنا..." onkeypress="handleKeyPress(event)">
+            <button id="sendBtn" onclick="sendMessage()">إرسال</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://sudanese-llm.onrender.com/generate";
+
+        async function sendMessage() {
+            const input = document.getElementById("userInput");
+            const regionSelect = document.getElementById("regionSelect");
+            const sendBtn = document.getElementById("sendBtn");
+            const chatBox = document.getElementById("chatBox");
+
+            const prompt = input.value.trim();
+            const region = regionSelect.value;
+
+            if (!prompt) return;
+
+            // Append user message
+            const userMsgDiv = document.createElement("div");
+            userMsgDiv.className = "message user";
+            userMsgDiv.textContent = prompt;
+            chatBox.appendChild(userMsgDiv);
+
+            input.value = "";
+            sendBtn.disabled = true;
+
+            // Append loading bot message
+            const botMsgDiv = document.createElement("div");
+            botMsgDiv.className = "message bot";
+            botMsgDiv.innerHTML = `<span class="region-tag">${region}</span> <i>جاري البحث والتفكير...</i>`;
+            chatBox.appendChild(botMsgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prompt: prompt, region: region })
+                });
+
+                if (!response.ok) {
+                    throw new Error("HTTP error " + response.status);
+                }
+
+                const data = await response.json();
+                botMsgDiv.innerHTML = `<span class="region-tag">${data.region || region}</span> ${data.response}`;
+            } catch (error) {
+                botMsgDiv.innerHTML = `<span class="region-tag">${region}</span> <span style="color: red;">عذراً، حدث خطأ أثناء الاتصال بالخادم.</span>`;
+                console.error("API Error:", error);
+            } finally {
+                sendBtn.disabled = false;
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        }
+    </script>
+</body>
+</html>
