@@ -8,7 +8,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
+
 """FastAPI Web Server for Multi-Regional Sudanese LLM."""
 import os
 import httpx
