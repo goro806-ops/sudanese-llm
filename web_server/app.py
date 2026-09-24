@@ -1,3 +1,14 @@
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="Multi-Regional Sudanese LLM API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 """FastAPI Web Server for Multi-Regional Sudanese LLM."""
 import os
 import httpx
