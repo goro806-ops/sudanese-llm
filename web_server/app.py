@@ -3,9 +3,14 @@ import os
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+from vector_db.vector_store import VectorStore
+from training.preprocessing import format_regional_prompt
 
 app = FastAPI(title="Multi-Regional Sudanese LLM API")
 
+# Add CORS middleware to allow requests from Hugging Face Spaces and other web origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,12 +18,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-from vector_db.vector_store import VectorStore
-from training.preprocessing import format_regional_prompt
-
-app = FastAPI(title="Multi-Regional Sudanese LLM API")
 
 # Initialize and populate vector store on startup
 vector_store = VectorStore()
