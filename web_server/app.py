@@ -99,7 +99,6 @@ def generate_text(req: GenerationRequest):
      response_msg = f"[{region.upper()} Dialect Response] {greeting} {context_str}"
  else:
      response_msg = f"[{region.upper()} Dialect Response] {greeting} كيف يمكنني مساعدتك اليوم؟"
-Click 
         "query": req.query,
         "region": req.region,
         "results": results
