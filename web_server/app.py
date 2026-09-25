@@ -59,46 +59,62 @@ def generate_text(req: GenerationRequest):
     openai_key = os.getenv("OPENAI_API_KEY")
 
     if hf_token:
-        try:
-            headers = {"Authorization": f"Bearer {hf_token}"}
-            payload = {
-                "inputs": f"Context: {context_str}\nPrompt: {formatted_prompt}",
-                "parameters": {"max_new_tokens": req.max_tokens or 100}
-            }
-            # Default model HF inference URL
-            url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
-            with httpx.Client(timeout=10.0) as client:
-                res = client.post(url, headers=headers, json=payload)
-                if res.status_code == 200:
-                    res_data = res.json()
-                    gen_text = res_data[0].get("generated_text", "") if isinstance(res_data, list) else str(res_data)
-                    return {
-                        "region": region,
-                        "prompt": req.prompt,
-                        "formatted_prompt": formatted_prompt,
-                        "rag_context": context_docs,
-                        "response": gen_text,
-                        "engine": "Hugging Face Inference API"
-                    }
-        except Exception as e:
-            print(f"HF API Inference call failed: {e}")
+        headers = {"Authorization": f"Bearer {hf_token}"}
+        payload = {
+            "inputs": f"Context: {context_str}\nPrompt: {formatted_prompt}",
+            "parameters": {"max_new_tokens": req.max_tokens or 100}
+        }
+        # Try Hugging Face Router URL first, then fallback to Legacy Inference URL
+        urls = [
+            "https://router.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct",
+            "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
+        ]
+        for url in urls:
+            try:
+                with httpx.Client(timeout=10.0) as client:
+                    res = client.post(url, headers=headers, json=payload)
+                    if res.status_code == 200:
+                        res_data = res.json()
+                        gen_text = res_data[0].get("generated_text", "") if isinstance(res_data, list) else str(res_data)
+                        return {
+                            "region": region,
+                            "prompt": req.prompt,
+                            "formatted_prompt": formatted_prompt,
+                            "rag_context": context_docs,
+                            "response": gen_text,
+                            "engine": "Hugging Face Inference API"
+                        }
+            except Exception as e:
+                print(f"HF API Inference call to {url} failed: {e}")
 
     # Default fallback simulated regional response with RAG context
-    response_msg = f"[{region.upper()} Dialect Response] {req.prompt}"
-    # Default fallback simulated regional response with RAG context
- regional_greetings = {
-     "khartoum": "مرحباً بك! حبابك عشرة في الخرطوم.",
-     "darfur": "حبابك حبابك وعوافي عليك في دارفور.",
-     "kordofan": "أهلاً بك في كردفان الغرة أم خيراً جوة وبرة.",
-     "eastern": "مرحباً بك في شرق السودان وعروس البحر الأحمر.",
-     "northern": "حبابك في الولايات الشمالية موطن الحضارة النوبية."
- }
- greeting = regional_greetings.get(region.lower(), f"أهلاً وسهلاً بك في المساعد الذكي للهجات السودانية ({region}).")
+    regional_greetings = {
+        "khartoum": "مرحباً بك! حبابك عشرة في الخرطوم.",
+        "darfur": "حبابك حبابك وعوافي عليك في دارفور.",
+        "kordofan": "أهلاً بك في كردفان الغرة أم خيراً جوة وبرة.",
+        "eastern": "مرحباً بك في شرق السودان وعروس البحر الأحمر.",
+        "northern": "حبابك في الولايات الشمالية موطن الحضارة النوبية."
+    }
+    greeting = regional_greetings.get(region.lower(), f"أهلاً وسهلاً بك في المساعد الذكي للهجات السودانية ({region}).")
 
- if context_str:
-     response_msg = f"[{region.upper()} Dialect Response] {greeting} {context_str}"
- else:
-     response_msg = f"[{region.upper()} Dialect Response] {greeting} كيف يمكنني مساعدتك اليوم؟"
+    if context_str:
+        response_msg = f"[{region.upper()} Dialect Response] {greeting} {context_str}"
+    else:
+        response_msg = f"[{region.upper()} Dialect Response] {greeting} كيف يمكنني مساعدتك اليوم؟"
+
+    return {
+        "region": region,
+        "prompt": req.prompt,
+        "formatted_prompt": formatted_prompt,
+        "rag_context": context_docs,
+        "response": response_msg,
+        "engine": "Local Multi-Regional Rule Engine"
+    }
+
+@app.post("/search")
+def search_vector_db(req: SearchRequest):
+    results = vector_store.search(req.query, region=req.region, top_k=req.top_k or 5)
+    return {
         "query": req.query,
         "region": req.region,
         "results": results
