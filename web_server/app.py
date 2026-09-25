@@ -85,22 +85,21 @@ def generate_text(req: GenerationRequest):
 
     # Default fallback simulated regional response with RAG context
     response_msg = f"[{region.upper()} Dialect Response] {req.prompt}"
-    if context_str:
-        response_msg += f" (Context: {context_str})"
+    # Default fallback simulated regional response with RAG context
+ regional_greetings = {
+     "khartoum": "مرحباً بك! حبابك عشرة في الخرطوم.",
+     "darfur": "حبابك حبابك وعوافي عليك في دارفور.",
+     "kordofan": "أهلاً بك في كردفان الغرة أم خيراً جوة وبرة.",
+     "eastern": "مرحباً بك في شرق السودان وعروس البحر الأحمر.",
+     "northern": "حبابك في الولايات الشمالية موطن الحضارة النوبية."
+ }
+ greeting = regional_greetings.get(region.lower(), f"أهلاً وسهلاً بك في المساعد الذكي للهجات السودانية ({region}).")
 
-    return {
-        "region": region,
-        "prompt": req.prompt,
-        "formatted_prompt": formatted_prompt,
-        "rag_context": context_docs,
-        "response": response_msg,
-        "engine": "Local Multi-Regional Rule Engine"
-    }
-
-@app.post("/search")
-def search_vector_db(req: SearchRequest):
-    results = vector_store.search(req.query, region=req.region, top_k=req.top_k or 5)
-    return {
+ if context_str:
+     response_msg = f"[{region.upper()} Dialect Response] {greeting} {context_str}"
+ else:
+     response_msg = f"[{region.upper()} Dialect Response] {greeting} كيف يمكنني مساعدتك اليوم؟"
+Click 
         "query": req.query,
         "region": req.region,
         "results": results
