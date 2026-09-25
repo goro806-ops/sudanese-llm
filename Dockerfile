@@ -3,10 +3,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Copy setup_project.py and install dependencies
 COPY setup_project.py /app/
 RUN python setup_project.py
 RUN pip install --no-cache-dir fastapi uvicorn pydantic httpx pytest
+
+# Copy all repository files into container
+COPY . /app/
 
 # Expose port for FastAPI
 EXPOSE 7860
