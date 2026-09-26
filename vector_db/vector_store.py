@@ -81,15 +81,25 @@ class VectorStore:
                 self.documents = []
 
     def search(self, query: str, region: Optional[str] = None, top_k: int = 5) -> List[Dict[str, Any]]:
-        """Perform search filtered by region if provided."""
+        """Perform search filtered by region if provided (case-insensitive)."""
         results = []
-        query_words = set(query.lower().split())
+        query_clean = query.lower().strip()
+        query_words = [w for w in query_clean.split() if len(w) > 1]
+        target_region = region.lower().strip() if region else None
+
         for doc in self.documents:
-            if region and doc.get("region") and doc.get("region") != region and doc.get("region") != "general":
+            doc_region = str(doc.get("region", "")).lower().strip()
+            if target_region and doc_region and doc_region != target_region and doc_region != "general":
                 continue
-            doc_words = set(doc.get("text", "").lower().split())
-            overlap = len(query_words.intersection(doc_words))
-            score = overlap / (len(query_words) + 1e-5)
+
+            doc_text = str(doc.get("text", "")).lower()
+            
+            # Substring and word matching for Arabic text
+            word_score = sum(1 for w in query_words if w in doc_text)
+            char_overlap = sum(1 for w in query_words for char in w if char in doc_text)
+            score = word_score * 2.0 + (char_overlap / (len(query_clean) + 1e-5))
+
             results.append({**doc, "score": score})
+
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:top_k]
