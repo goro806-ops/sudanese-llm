@@ -1,6 +1,8 @@
 """FastAPI Web Server for Multi-Regional Sudanese LLM."""
 import os
+import sqlite3
 import httpx
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -78,65 +80,135 @@ def get_search_vector_db(
         "results": results
     }
 
+def clean_rag_text(text: str) -> str:
+    """Clean Wikipedia boilerplate headers from RAG context."""
+    boilerplate = [
+        "هذه نسخة متحقق منها من هذه الصفحة",
+        "هذه النسخة المستقرة، فحصت في",
+        "تعديلات معلقة معروضة"
+    ]
+    cleaned = text
+    for bp in boilerplate:
+        cleaned = cleaned.replace(bp, "")
+    return cleaned.strip()
+
+def search_lexicon_db(term: str) -> Optional[tuple]:
+    """Search for term in SQLite Lexicon DB."""
+    db_path = Path("data/processed/sudanese_lexicon.db")
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT term, meaning, region, category, example, phonetic FROM lexicon WHERE term LIKE ? OR meaning LIKE ?",
+                (f"%{term}%", f"%{term}%")
+            )
+            rows = cursor.fetchall()
+            conn.close()
+            if rows:
+                return rows[0]
+        except Exception as e:
+            print(f"Error searching lexicon DB: {e}")
+    return None
+
 @app.post("/generate")
 def generate_text(req: GenerationRequest):
     region = (req.region or "khartoum").lower()
+    prompt_clean = req.prompt.strip().lower()
     formatted_prompt = format_regional_prompt(req.prompt, region)
-    
+
+    # Regional greetings and persona definition
+    regional_greetings = {
+        "khartoum": "حبابك عشرة يا زول في الخرطوم!",
+        "darfur": "حبابك حبابك وعوافي عليك في دارفور، أبشر بالخير!",
+        "kordofan": "أهلاً بيك يا طيب في كردفان الغرة، أم خيراً جوة وبرة!",
+        "eastern": "مرحب بيك وحبابك في شرق السودان وأرض البجا!",
+        "northern": "مسكاقمي! إيقا كويي؟ مسكاجلو حبابك يا زول في أورون الشمالية والرطانة النوبية!"
+    }
+    greeting = regional_greetings.get(region, f"حبابك عشرة يا زول في المساعد السوداني ({region})!")
+
+    # 1. Intent Recognition: Conversational Questions
+    identity_keywords = ["من أنت", "منو انت", "عرف بنفسك", "مين انت", "من انت", "شنو انت"]
+    if any(k in prompt_clean for k in identity_keywords):
+        resp_msg = f"{greeting}\nأنا **المساعد الذكي للهجات والثقافة السودانية** 🇸🇩.\nأصمّمت لمساعدتك في التحدث بفهم ومفردات اللهجات السودانية المختلفة (الخرطوم، دارفور، كردفان، الشرق، والشمالية بالرطانة النوبية)، وتوضيح معاني الأمثال والتراث السوداني الأصيل."
+        return {
+            "region": region,
+            "prompt": req.prompt,
+            "formatted_prompt": formatted_prompt,
+            "rag_context": [],
+            "response": resp_msg,
+            "engine": "Sudanese Conversational Router"
+        }
+
+    capability_keywords = ["إمكانياتك", "امكانياتك", "بتعمل شنو", "شنو بتقدر", "شنو بتعرف", "شنو امكانياتك", "كيف بتساعد"]
+    if any(k in prompt_clean for k in capability_keywords):
+        resp_msg = f"{greeting}\nإمكانياتي تشمل:\n1️⃣ **تفسير وترجمة اللهجات السودانية**: تحويل المفردات بين اللهجات الفتحة، الفصحى، والإنجليزي.\n2️⃣ **الرطانة النوبية بالشمالية**: شرح كلمات ومصطلحات نوبية مثل (مسكاقمي، إكسي، إيقا كويي).\n3️⃣ **التراث والأمثال الشعبية**: شرح معاني الأمثال السودانية في جميع الأقاليم.\n4️⃣ **المعلومات الجغرافية والثقافية**: الإجابة عن المعالم والمدن السودانية."
+        return {
+            "region": region,
+            "prompt": req.prompt,
+            "formatted_prompt": formatted_prompt,
+            "rag_context": [],
+            "response": resp_msg,
+            "engine": "Sudanese Conversational Router"
+        }
+
+    # 2. Intent Recognition: Translation / Dialect conversion requests
+    translation_keywords = ["حول", "ترجم", "اقلب", "أقلب", "رطانة", "بالرطانة", "بالشمالية", "بالسوداني"]
+    if any(k in prompt_clean for k in translation_keywords):
+        # Look for dictionary matches first
+        lex_match = search_lexicon_db(req.prompt)
+        if lex_match:
+            term, meaning, term_region, category, example, phonetic = lex_match
+            resp_msg = f"{greeting}\nالترجمة والمعنى المطلوب:\n📌 **الكلمة/المصطلح**: {term}\n💡 **المعنى**: {meaning}\n🗺️ **الإقليم**: {term_region}"
+            if example:
+                resp_msg += f"\n💬 **مثال**: {example}"
+            return {
+                "region": region,
+                "prompt": req.prompt,
+                "formatted_prompt": formatted_prompt,
+                "rag_context": [],
+                "response": resp_msg,
+                "engine": "Sudanese Lexicon Engine"
+            }
+        elif region == "northern" or "رطانة" in prompt_clean or "شمالية" in prompt_clean:
+            resp_msg = f"{greeting}\nبالنسبة للتحويل للرطانة النوبية الشمالية:\n• التحية: **مسكاقمي** (كيف حالك / أهلاً)\n• السؤال عن الحال: **إيقا كويي؟** (هل أنت بخير؟)\n• القوت والخبز: **إكسي**\n• الماء: **إسي**\n• الترحيب بالأهل: **مسكاجلو / أورون مسكاقرو**"
+            return {
+                "region": region,
+                "prompt": req.prompt,
+                "formatted_prompt": formatted_prompt,
+                "rag_context": [],
+                "response": resp_msg,
+                "engine": "Sudanese Rotana Translator"
+            }
+
     # Retrieve relevant regional context from vector store (RAG)
     context_docs = vector_store.search(req.prompt, region=region, top_k=3)
-    context_str = " ".join([d.get("text", "") for d in context_docs]) if context_docs else ""
+    context_str = " ".join([clean_rag_text(d.get("text", "")) for d in context_docs]) if context_docs else ""
 
-    # Check for Hugging Face or OpenAI API Key environment variables for external LLM inference
+    # Check for Hugging Face API Key environment variables for external LLM inference
     hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_HUB_TOKEN")
 
     if hf_token:
         headers = {"Authorization": f"Bearer {hf_token}"}
-        payload = {
-            "inputs": f"Context: {context_str}\nPrompt: {formatted_prompt}",
-            "parameters": {"max_new_tokens": req.max_tokens or 100}
-        }
-        # Try Hugging Face Router URLs
-        urls = [
-            "https://router.huggingface.co/hf-inference/models/Qwen/Qwen2.5-7B-Instruct",
-            "https://router.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct"
-        ]
-        for url in urls:
-            try:
-                with httpx.Client(timeout=10.0) as client:
-                    res = client.post(url, headers=headers, json=payload)
-                    if res.status_code == 200:
-                        res_data = res.json()
-                        gen_text = res_data[0].get("generated_text", "") if isinstance(res_data, list) else str(res_data)
-                        return {
-                            "region": region,
-                            "prompt": req.prompt,
-                            "formatted_prompt": formatted_prompt,
-                            "rag_context": context_docs,
-                            "response": gen_text,
-                            "engine": "Hugging Face Inference API"
-                        }
-                    else:
-                        print(f"HF API Inference call to {url} returned status {res.status_code}")
-            except Exception as e:
-                print(f"HF API Inference call to {url} failed: {e}")
 
-        # Try Chat Completions endpoint on Router
+        # Try Chat Completions endpoint on Router first
         try:
             chat_url = "https://router.huggingface.co/hf-inference/v1/chat/completions"
             chat_payload = {
                 "model": "Qwen/Qwen2.5-7B-Instruct",
                 "messages": [
-                    {"role": "system", "content": f"You are a helpful assistant speaking in authentic Sudanese Arabic regional dialect ({region}). For northern region use authentic Nubian Rotana terms (مسكاقمي, إيقا كويي). Context: {context_str}"},
+                    {"role": "system", "content": f"أنت المساعد الذكي للهجات والثقافة السودانية. تتحدث وتجيب دائماً باللهجة السودانية الأصلية بحسب منطقة ({region}). تجنب استخدام اللهجات غير السودانية (مثل المصرية أو الشامية). في الشمالية استخدم الرطانة النوبية (مسكاقمي، إيقا كويي). السياق الداعم: {context_str}"},
                     {"role": "user", "content": formatted_prompt}
                 ],
-                "max_tokens": req.max_tokens or 100
+                "max_tokens": req.max_tokens or 150
             }
             with httpx.Client(timeout=10.0) as client:
                 res = client.post(chat_url, headers=headers, json=chat_payload)
                 if res.status_code == 200:
                     res_data = res.json()
                     gen_text = res_data["choices"][0]["message"]["content"]
+                    # Clean out any accidental ChatGPT mentions if LLM hallucinates
+                    gen_text = gen_text.replace("تشات جي بي تي", "المساعد الذكي للهجات السودانية").replace("ChatGPT", "المساعد الذكي للهجات السودانية")
                     return {
                         "region": region,
                         "prompt": req.prompt,
@@ -145,14 +217,12 @@ def generate_text(req: GenerationRequest):
                         "response": gen_text,
                         "engine": "Hugging Face Inference API (Chat)"
                     }
-                else:
-                    print(f"HF Chat Inference call returned status {res.status_code}")
         except Exception as e:
             print(f"HF Chat Inference call failed: {e}")
 
-    # Fallback to zero-config dynamic open LLM inference via Pollinations AI if accessible
+    # Fallback to Pollinations AI with strict Sudanese system persona
     try:
-        sys_prompt = f"أنت مساعد سوداني تجيب حكماً باللهجة السودانية المحلية الخاصة بمنطقة ({region}). في المنطقة الشمالية استخدم الرطانة النوبية (مسكاقمي، إيقا كويي، إسي، إكسي، أميتي). أجب بأسلوب رطانة سوداني أصيل. السياق: {context_str}"
+        sys_prompt = f"أنت المساعد الذكي للهجات والثقافة السودانية. تجيب حكماً وأصالة باللهجة السودانية المحلية الخاصة بمنطقة ({region}). يمنع منعاً باتاً استخدام العبارات المصرية مثل (إيه معاك، يا عم). لا تقل أبداً أنك ChatGPT. في الشمالية استخدم الرطانة النوبية (مسكاقمي، إيقا كويي، إكسي). السياق المفيد: {context_str}"
         pollination_payload = {
             "messages": [
                 {"role": "system", "content": sys_prompt},
@@ -160,35 +230,28 @@ def generate_text(req: GenerationRequest):
             ],
             "model": "openai"
         }
-        with httpx.Client(timeout=4.0) as client:
+        with httpx.Client(timeout=5.0) as client:
             res = client.post("https://text.pollinations.ai/", json=pollination_payload)
             if res.status_code == 200 and res.text.strip():
+                gen_text = res.text.strip()
+                gen_text = gen_text.replace("تشات جي بي تي", "المساعد الذكي للهجات السودانية").replace("ChatGPT", "المساعد الذكي للهجات السودانية")
                 return {
                     "region": region,
                     "prompt": req.prompt,
                     "formatted_prompt": formatted_prompt,
                     "rag_context": context_docs,
-                    "response": res.text.strip(),
+                    "response": gen_text,
                     "engine": "Dynamic Open LLM Engine"
                 }
     except Exception as e:
-        print(f"Pollinations AI inference skipped/failed: {e}")
+        print(f"Pollinations AI inference failed: {e}")
 
-    # Authentic Dialect RAG Synthesis Engine: synthesize answer purely in local Sudanese dialect/rotana
-    regional_greetings = {
-        "khartoum": "حبابك عشرة يا زول في الخرطوم!",
-        "darfur": "حبابك حبابك وعوافي عليك في دارفور أبشر بالخير!",
-        "kordofan": "أهلاً بيك يا طيب في كردفان الغرة أم خيراً جوة وبرة!",
-        "eastern": "مرحب بيك وحبابك في شرق السودان وأرض البجا!",
-        "northern": "مسكاقمي! إيقا كويي؟ مسكاجلو حبابك يا زول في أورون الشمالية والرطانة النوبية!"
-    }
-    greeting = regional_greetings.get(region, f"حبابك عشرة يا زول في المساعد السوداني ({region})!")
-
+    # Fallback: Clean Sudanese Regional Dialect RAG Engine
     if context_docs and context_str:
-        top_doc = context_docs[0].get("text", "")
-        response_msg = f"{greeting} بالنسبة لسؤالك يا حبيب: {top_doc}"
+        cleaned_doc = clean_rag_text(context_docs[0].get("text", ""))
+        response_msg = f"{greeting}\nمعلومات مستخرجة حول سؤالك بخصوص ({region}):\n{cleaned_doc}"
     else:
-        response_msg = f"{greeting} كيف أقدر أساعدك الليلة بخصوص رطانة وكلام وثقافة {region}؟"
+        response_msg = f"{greeting}\nكيف أقدر أساعدك الليلة بخصوص رطانة وكلام وثقافة {region}؟ اسألني عن معاني الكلمات أو الأمثال السودانية الأصيلة."
 
     return {
         "region": region,
@@ -227,56 +290,37 @@ def translate_get(
 @app.post("/translate")
 def translate_post(req: TranslationRequest):
     """Translate between Sudanese regional dialects, Modern Standard Arabic (MSA), and English."""
-    import sqlite3
-    from pathlib import Path
-
     text = req.text.strip()
     source_lang = (req.source_lang or "sudanese").lower()
     target_lang = (req.target_lang or "msa").lower()
     region = (req.region or "khartoum").lower()
 
     # 1. Search in SQLite Lexicon Database
-    db_path = Path("data/processed/sudanese_lexicon.db")
-    matched_term = None
-    if db_path.exists():
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT term, meaning, region, category, example, phonetic FROM lexicon WHERE term LIKE ? OR meaning LIKE ?",
-                (f"%{text}%", f"%{text}%")
-            )
-            rows = cursor.fetchall()
-            if rows:
-                matched_term = rows[0]
-            conn.close()
-        except Exception as e:
-            print(f"Error querying lexicon DB for translation: {e}")
+    matched_term = search_lexicon_db(text)
 
     # 2. Search in Vector Store (RAG)
     rag_matches = vector_store.search(text, region=region, top_k=3)
-    context_hint = rag_matches[0].get("text", "") if rag_matches else ""
 
     # Synthesize translation output
     if matched_term:
         term, meaning, term_region, category, example, phonetic = matched_term
         if target_lang in ["msa", "arabic", "فصحى"]:
-            translation = f"{term} تعني بالفصحى: {meaning}."
+            translation = f"'{term}' تعني بالفصحى: {meaning}."
             if example:
                 translation += f" مثال: {example}."
         elif target_lang in ["english", "en"]:
             translation = f"'{term}' ({phonetic or term}) means in English: '{meaning}'. Example: {example}."
-        else: # Translate to Sudanese dialect
+        else:
             translation = f"باللهجة السودانية ({term_region}): '{term}' - {meaning}."
     elif rag_matches:
-        top_match = rag_matches[0].get("text", "")
+        top_match = clean_rag_text(rag_matches[0].get("text", ""))
         if target_lang in ["english", "en"]:
             translation = f"Sudanese translation/meaning context: {top_match}"
         else:
             translation = f"المعنى والترجمة السودانية: {top_match}"
     else:
         if target_lang in ["english", "en"]:
-            translation = f"Translation for '{text}' in Sudanese ({region}): Friendly greeting or term expressing welcome and goodwill."
+            translation = f"Translation for '{text}' in Sudanese ({region}): Friendly greeting or local term expressing welcome and goodwill."
         else:
             translation = f"الترجمة إلى الفصحى لكلمة '{text}': تعبير سوداني محلي يدل على التحية والترحيب والتضامن."
 
