@@ -1,0 +1,153 @@
+"""Batch Book Extraction Worker.
+Processes large PDF dictionary books in page chunks using 300 DPI image rendering,
+OpenCV contrast enhancement, and EasyOCR line-by-line parsing.
+Runs safely in background or cloud environments (e.g., GitHub Actions, Kaggle, background server).
+"""
+import os
+import sys
+import argparse
+import sqlite3
+import json
+import re
+from pathlib import Path
+import pymupdf
+import easyocr
+import cv2
+import numpy as np
+from vector_db.vector_store import VectorStore
+
+DB_PATH = Path("data/processed/sudanese_lexicon.db")
+
+def init_ocr():
+    print("Initializing EasyOCR for Arabic (GPU/CPU)...")
+    return easyocr.Reader(['ar'], gpu=False)
+
+def preprocess_image(img_bytes):
+    """Enhance scanned PDF page image contrast for OCR accuracy."""
+    nparr = np.frombuffer(img_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # Apply adaptive thresholding to clean background noise
+    processed = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
+    return processed
+
+def process_page(page, reader, page_num):
+    """Extract line-by-line dictionary entries from a single PDF page at 300 DPI."""
+    pix = page.get_pixmap(dpi=300)
+    img_bytes = pix.tobytes("png")
+    enhanced_img = preprocess_image(img_bytes)
+
+    # Save temporary image for EasyOCR
+    tmp_path = f"tmp_page_{page_num}.png"
+    cv2.imwrite(tmp_path, enhanced_img)
+
+    results = reader.readtext(tmp_path, detail=1, paragraph=False)
+    if os.path.exists(tmp_path):
+        os.remove(tmp_path)
+
+    entries = []
+    current_entry_text = []
+
+    for bbox, text, prob in results:
+        text = text.strip()
+        if not text or prob < 0.2:
+            continue
+
+        # If line looks like a headword or new section, start a new dictionary item
+        words = text.split()
+        if len(words) <= 3 and len(text) >= 2 and not text.isdigit():
+            if current_entry_text:
+                full_text = " ".join(current_entry_text)
+                headword = current_entry_text[0] if current_entry_text else "مفردة"
+                headword = re.sub(r'[^\w\s]', '', headword)
+                if len(headword) >= 2 and len(full_text) >= 15:
+                    entries.append({
+                        "term": headword,
+                        "meaning": full_text,
+                        "region": "khartoum",
+                        "category": "dictionary_book",
+                        "example": f"من كتاب قاموس العامية (ص {page_num}): {full_text[:120]}...",
+                        "phonetic": headword
+                    })
+            current_entry_text = [text]
+        else:
+            current_entry_text.append(text)
+
+    if current_entry_text:
+        full_text = " ".join(current_entry_text)
+        headword = current_entry_text[0] if current_entry_text else "مفردة"
+        headword = re.sub(r'[^\w\s]', '', headword)
+        if len(headword) >= 2 and len(full_text) >= 15:
+            entries.append({
+                "term": headword,
+                "meaning": full_text,
+                "region": "khartoum",
+                "category": "dictionary_book",
+                "example": f"من كتاب قاموس العامية (ص {page_num}): {full_text[:120]}...",
+                "phonetic": headword
+            })
+
+    return entries
+
+def save_batch(entries):
+    if not entries or not DB_PATH.exists():
+        return 0
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    saved = 0
+
+    for e in entries:
+        try:
+            cursor.execute("""
+                INSERT OR IGNORE INTO lexicon (term, meaning, region, category, example, phonetic)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (e["term"], e["meaning"], e["region"], e["category"], e["example"], e["phonetic"]))
+            if cursor.rowcount > 0:
+                saved += 1
+        except Exception:
+            pass
+
+    conn.commit()
+    conn.close()
+    return saved
+
+def main():
+    parser = argparse.ArgumentParser(description="Full Book Batch Extraction Worker")
+    parser.add_argument("--pdf-path", type=str, default="downloaded_book_1.pdf")
+    parser.add_argument("--start-page", type=int, default=1)
+    parser.add_argument("--end-page", type=int, default=1251)
+    args = parser.parse_args()
+
+    if not os.path.exists(args.pdf_path):
+        print(f"Error: PDF file '{args.pdf_path}' not found.")
+        sys.exit(1)
+
+    doc = pymupdf.open(args.pdf_path)
+    reader = init_ocr()
+    total_doc_pages = len(doc)
+    start_p = max(0, args.start_page - 1)
+    end_p = min(total_doc_pages, args.end_page)
+
+    print(f"Starting batch extraction on '{args.pdf_path}' (Pages {start_p + 1} to {end_p} of {total_doc_pages})...")
+
+    total_saved = 0
+    for p in range(start_p, end_p):
+        print(f"Processing page {p + 1}/{end_p}...")
+        try:
+            page_entries = process_page(doc[p], reader, p + 1)
+            saved = save_batch(page_entries)
+            total_saved += saved
+            print(f"  Extracted {len(page_entries)} entries ({saved} new entries saved).")
+        except Exception as err:
+            print(f"  Error processing page {p + 1}: {err}")
+
+    # Re-index Vector Store at the end
+    vs = VectorStore()
+    vs.load_raw_dataset()
+    print(f"\nBatch Completed! Total new entries saved: {total_saved}. Vector store re-indexed ({len(vs.documents)} total docs).")
+
+if __name__ == "__main__":
+    main()
