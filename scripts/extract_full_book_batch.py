@@ -2,6 +2,7 @@
 Processes large PDF dictionary books in page chunks using 300 DPI image rendering,
 OpenCV contrast enhancement, and EasyOCR line-by-line parsing.
 Runs safely in background or cloud environments (e.g., GitHub Actions, Kaggle, background server).
+Auto-downloads the Google Drive PDF source if not present locally.
 """
 import os
 import sys
@@ -9,6 +10,7 @@ import argparse
 import sqlite3
 import json
 import re
+import urllib.request
 from pathlib import Path
 import pymupdf
 import easyocr
@@ -17,6 +19,19 @@ import numpy as np
 from vector_db.vector_store import VectorStore
 
 DB_PATH = Path("data/processed/sudanese_lexicon.db")
+GDRIVE_PDF_ID = "1qyPmkzNgvyyJrWk2NMBD4w_aE6i9TIuG"
+GDRIVE_DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_PDF_ID}"
+
+def download_source_pdf(target_path: str):
+    """Download source PDF from Google Drive if not present locally."""
+    if not os.path.exists(target_path):
+        print(f"PDF source file '{target_path}' not found locally. Downloading from Google Drive...")
+        try:
+            urllib.request.urlretrieve(GDRIVE_DOWNLOAD_URL, target_path)
+            print(f"Successfully downloaded '{target_path}' ({os.path.getsize(target_path)} bytes).")
+        except Exception as err:
+            print(f"Error downloading PDF from Google Drive: {err}")
+            sys.exit(1)
 
 def init_ocr():
     print("Initializing EasyOCR for Arabic (GPU/CPU)...")
@@ -121,9 +136,8 @@ def main():
     parser.add_argument("--end-page", type=int, default=1251)
     args = parser.parse_args()
 
-    if not os.path.exists(args.pdf_path):
-        print(f"Error: PDF file '{args.pdf_path}' not found.")
-        sys.exit(1)
+    # Automatically download the Google Drive PDF source if missing
+    download_source_pdf(args.pdf_path)
 
     doc = pymupdf.open(args.pdf_path)
     reader = init_ocr()
