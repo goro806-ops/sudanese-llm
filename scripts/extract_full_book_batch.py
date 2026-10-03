@@ -12,13 +12,19 @@ import json
 import re
 import urllib.request
 from pathlib import Path
+
+# Ensure repository root directory is in Python module search path
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 import pymupdf
 import easyocr
 import cv2
 import numpy as np
 from vector_db.vector_store import VectorStore
 
-DB_PATH = Path("data/processed/sudanese_lexicon.db")
+DB_PATH = ROOT_DIR / "data" / "processed" / "sudanese_lexicon.db"
 GDRIVE_PDF_ID = "1qyPmkzNgvyyJrWk2NMBD4w_aE6i9TIuG"
 GDRIVE_DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_PDF_ID}"
 
