@@ -25,8 +25,26 @@ import numpy as np
 from vector_db.vector_store import VectorStore
 
 DB_PATH = ROOT_DIR / "data" / "processed" / "sudanese_lexicon.db"
+CHECKPOINT_PATH = ROOT_DIR / "data" / "processed" / "extraction_checkpoint.json"
 GDRIVE_PDF_ID = "1qyPmkzNgvyyJrWk2NMBD4w_aE6i9TIuG"
 GDRIVE_DOWNLOAD_URL = f"https://drive.google.com/uc?export=download&id={GDRIVE_PDF_ID}"
+
+def save_checkpoint(page_num: int, pdf_path: str):
+    """Save extraction progress checkpoint."""
+    CHECKPOINT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CHECKPOINT_PATH, "w", encoding="utf-8") as f:
+        json.dump({"last_processed_page": page_num, "pdf_path": pdf_path}, f, indent=2)
+
+def load_checkpoint():
+    """Load last saved extraction progress checkpoint if available."""
+    if CHECKPOINT_PATH.exists():
+        try:
+            with open(CHECKPOINT_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("last_processed_page", 0)
+        except Exception as err:
+            print(f"Warning: Failed to load checkpoint file: {err}")
+    return 0
 
 def download_source_pdf(target_path: str):
     """Download source PDF from Google Drive if not present locally."""
@@ -140,6 +158,7 @@ def main():
     parser.add_argument("--pdf-path", type=str, default="downloaded_book_1.pdf")
     parser.add_argument("--start-page", type=int, default=1)
     parser.add_argument("--end-page", type=int, default=1251)
+    parser.add_argument("--resume", action="store_true", help="Resume from last saved checkpoint page")
     args = parser.parse_args()
 
     # Automatically download the Google Drive PDF source if missing
@@ -148,7 +167,17 @@ def main():
     doc = pymupdf.open(args.pdf_path)
     reader = init_ocr()
     total_doc_pages = len(doc)
-    start_p = max(0, args.start_page - 1)
+
+    start_page = args.start_page
+    if args.resume:
+        last_page = load_checkpoint()
+        if last_page > 0:
+            start_page = last_page + 1
+            print(f"🔄 Resuming extraction from checkpoint page {start_page}...")
+        else:
+            print("ℹ️ No previous checkpoint found. Starting from page 1.")
+
+    start_p = max(0, start_page - 1)
     end_p = min(total_doc_pages, args.end_page)
 
     print(f"Starting batch extraction on '{args.pdf_path}' (Pages {start_p + 1} to {end_p} of {total_doc_pages})...")
@@ -160,7 +189,8 @@ def main():
             page_entries = process_page(doc[p], reader, p + 1)
             saved = save_batch(page_entries)
             total_saved += saved
-            print(f"  Extracted {len(page_entries)} entries ({saved} new entries saved).")
+            save_checkpoint(p + 1, args.pdf_path)
+            print(f"  Extracted {len(page_entries)} entries ({saved} new entries saved). Checkpoint saved at page {p + 1}.")
         except Exception as err:
             print(f"  Error processing page {p + 1}: {err}")
 
