@@ -171,7 +171,10 @@ def main():
     start_page = args.start_page
     if args.resume:
         last_page = load_checkpoint()
-        if last_page > 0:
+        if last_page >= total_doc_pages:
+            print(f"🎉 Extraction already completed up to page {last_page}/{total_doc_pages}! Nothing left to process.")
+            sys.exit(0)
+        elif last_page > 0:
             start_page = last_page + 1
             print(f"🔄 Resuming extraction from checkpoint page {start_page}...")
         else:
