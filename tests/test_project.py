@@ -145,19 +145,20 @@ def test_translation_endpoints():
 
 def test_ocr_refinement_heuristic():
     """Verify rule-based OCR string refiner and abbreviation expansion."""
-    from scripts.refine_ocr_with_ai import heuristic_refine_entry, clean_ocr_text, expand_abbreviations
+    from scripts.refine_ocr_with_ai import heuristic_refine_entry, clean_ocr_text, expand_dictionary_abbreviations
 
     raw_term = "^ أبجر"
-    raw_meaning = "أبجر (س) (دارفور) أوالمنتفخ البطن (ف) الغليظ (م) في المثل القديم"
+    raw_meaning = "أبجر (س) (دارفور) أوالمنتفخ البطن (ف) الغليظ (م) في المثل القديم (ش) في المسدار"
 
     cleaned_text = clean_ocr_text(raw_meaning)
     assert "^" not in cleaned_text
 
-    expanded = expand_abbreviations(raw_meaning)
-    assert "[سودانية عامية]" in expanded
+    expanded = expand_dictionary_abbreviations(raw_meaning)
+    assert "[عامية سودانية]" in expanded
     assert "[إقليم دارفور]" in expanded
-    assert "[فصيحة]" in expanded
+    assert "[أصل فصيح]" in expanded
     assert "[مثل شعبي]" in expanded
+    assert "[شعر ودوبيت]" in expanded
 
     refined = heuristic_refine_entry(raw_term, raw_meaning)
     assert refined["term"] == "أبجر"
