@@ -141,3 +141,25 @@ def test_translation_endpoints():
     assert res_post.status_code == 200
     post_json = res_post.json()
     assert "شخص" in post_json["translation"] or "إنسان" in post_json["translation"]
+
+
+def test_ocr_refinement_heuristic():
+    """Verify rule-based OCR string refiner and abbreviation expansion."""
+    from scripts.refine_ocr_with_ai import heuristic_refine_entry, clean_ocr_text, expand_abbreviations
+
+    raw_term = "^ أبجر"
+    raw_meaning = "أبجر (س) (دارفور) أوالمنتفخ البطن (ف) الغليظ (م) في المثل القديم"
+
+    cleaned_text = clean_ocr_text(raw_meaning)
+    assert "^" not in cleaned_text
+
+    expanded = expand_abbreviations(raw_meaning)
+    assert "[سودانية عامية]" in expanded
+    assert "[إقليم دارفور]" in expanded
+    assert "[فصيحة]" in expanded
+    assert "[مثل شعبي]" in expanded
+
+    refined = heuristic_refine_entry(raw_term, raw_meaning)
+    assert refined["term"] == "أبجر"
+    assert refined["region"] == "darfur"
+    assert refined["category"] == "مثل_ومقولة"
