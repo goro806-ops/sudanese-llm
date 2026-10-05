@@ -1,32 +1,26 @@
 #!/usr/bin/env python3
 """
-AI & Domain Knowledge OCR Dictionary Refiner Script
+AI & Multi-Provider OCR Dictionary Refiner Script
 --------------------------------------------------
 Refines raw "blind" OCR text extracted from Prof. Awn Al-Sharif Qasim's
-scanned reference book "قاموس العامية السودانية" in `sudanese_lexicon.db`:
+scanned reference book "قاموس العامية السودانية" in `sudanese_lexicon.db`.
 
-Book-Specific Domain Knowledge & Conventions:
-1. Dictionary Abbreviations:
-   - (س) -> سودانية / عامية سودانية (Sudanese Colloquial term)
-   - (ف) -> فصيح / أصل عربي فصيح (Classical Arabic root)
-   - (م) -> مثل شعبي سوداني (Sudanese Folk Proverb)
-   - (ج) -> الجمع (Plural form)
-   - (ش) -> شعر / دوبيت / مسدار (Folk Poetry / Dobait citation)
-   - (ع) -> عبارة شعبية / تعبير (Popular phrase / Expression)
-   - (ر) -> رطانة / لغة نوبية (Nubian / Rotana language origin)
-   - (ك) -> كشاف / إحالة لجذر آخر (Dictionary cross-reference)
-   - (ب) -> بجاوية / لغة البجا (Beja language origin)
-   - (غرب) / (دارفور) -> إقليم دارفور والغرب
-   - (كردفان) -> إقليم كردفان
-   - (شمال) / (ن) -> الشمال والنوبية
-   - (بطانة) -> إقليم البطانة
-   - (شرق) -> شرق السودان
+Supported Free AI Providers:
+1. Groq API (GROQ_API_KEY) -> Free fast LLaMA-3.3-70B / Qwen2.5-72B
+2. Google Gemini API (GEMINI_API_KEY) -> Free gemini-1.5-flash / gemini-2.0-flash
+3. Hugging Face Inference API (HF_TOKEN) -> Free open-weights LLMs
+4. OpenAI API (OPENAI_API_KEY) -> GPT-4o-mini
+5. Offline Rule-Based Heuristic Parser (Default fallback when no key is set)
 
-2. Structural Cleansing:
-   - Separates headwords (المفردة) from definition body.
-   - Cleans OCR scanning noise (isolated non-Arabic characters, random punctuation like ^, *, ~, %, column borders).
-   - Identifies examples and proverbs for structured database columns.
-   - Determines dialect region (khartoum, darfur, kordofan, eastern, northern).
+Book-Specific Conventions & Abbreviation Expansions:
+   - (س) -> عامية سودانية
+   - (ف) -> أصل فصيح
+   - (م) -> مثل شعبي
+   - (ج) -> الجمع
+   - (ش) -> شعر ودوبيت
+   - (ع) -> تعبير شعبي
+   - (ر) -> لغة نوبية / رطانة
+   - (ب) -> لغة بجاوية
 """
 
 import os
@@ -35,12 +29,12 @@ import sys
 import json
 import sqlite3
 import argparse
+import urllib.request
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT_DIR / "data" / "processed" / "sudanese_lexicon.db"
 
-# Comprehensive Sudanese Dictionary Abbreviations
 ABBREVIATION_REPLACEMENTS = [
     (r'\(\s*س\s*\)', ' [عامية سودانية] '),
     (r'\(\s*ف\s*\)', ' [أصل فصيح] '),
@@ -79,39 +73,22 @@ REGION_KEYWORDS = {
 }
 
 BOOK_DOMAIN_SYSTEM_PROMPT = """أنت خبير ومعجمي متخصص في تحقيق وترميم "قاموس العامية السودانية" للبروفيسور عون الشريف قاسم.
-تقوم بتنظيف وتحليل النصوص المستخرجة بتقنية OCR من القاموس وتحويلها إلى بيانات معجمية دقيقة 100%.
+تقوم بتنظيف وتحليل النصوص المستخرجة بتقنية OCR من القاموس وتحويلها إلى بيانات معجمية دقيقة.
 
 قواعد المعجم السوداني المعتمدة:
-1. المفردة (term): اسم الكلمة أو الجذر الأساسي مع ضبط الحركات إن وجدت.
-2. الاختصارات المعجمية:
-   - (س) تعني: عامية سودانية
-   - (ف) تعني: أصل عربي فصيح
-   - (م) تعني: مثل شعبي سوداني
-   - (ج) تعني: صيغة الجمع
-   - (ش) تعني: شاهد شعر شعبى / دوبيت / مسدار
-   - (ع) تعني: تعبير أو عبارة شعبية
-   - (ر) تعني: رطانة / لغة نوبية
-   - (ب) تعني: لغة بجاوية
-   - (غرب / دارفور / كردفان / شمال / بطانة / شرق) تعني تحديد الإقليم أو المنطقة.
-3. التصفية والتنظيف:
-   - إزالة رموز OCR المشوهة مثل (^, *, %, ~, _, <, >).
-   - التمييز بين المعنى والشرح (meaning) والشواهد والأمثال (example).
-4. تحديد الإقليم (region):
-   - اختر من بين: khartoum, darfur, kordofan, eastern, northern.
-5. التصنيف (category):
-   - اختر التصنيف الدقيق (مثل: مثل_ومقولة, ترحيب / تحية, مفردات وشرح ثقافي, فنون وتراث, أواني ومأكولات).
+1. المفردة (term): اسم الكلمة أو الجذر الأساسي.
+2. الاختصارات المعجمية: (س -> عامية سودانية), (ف -> أصل فصيح), (م -> مثل شعبي), (ج -> الجمع), (ش -> شعر ودوبيت), (ع -> تعبير شعبي), (ر -> رطانة نوبية), (ب -> بجاوية).
+3. إزالة رموز OCR المشوهة (^, *, %, ~).
+4. تحديد الإقليم (region): khartoum, darfur, kordofan, eastern, northern.
+5. التصنيف (category): مثل_ومقولة, ترحيب / تحية, مفردات وشرح ثقافي, فنون وتراث.
 """
 
 def clean_ocr_text(raw_text: str) -> str:
-    """Clean scanning artifacts, non-Arabic noise symbols, and page numbers."""
+    """Clean scanning artifacts and non-Arabic noise symbols."""
     if not raw_text:
         return ""
-
-    # Remove random OCR noise symbols
     cleaned = re.sub(r'[\^~\*#_%<>{}\|\\\]\[]', ' ', raw_text)
-    # Remove isolated Latin characters
     cleaned = re.sub(r'\b[a-zA-Z]\b', ' ', cleaned)
-    # Collapse multiple spaces
     cleaned = re.sub(r'\s+', ' ', cleaned).strip()
     return cleaned
 
@@ -133,74 +110,117 @@ def heuristic_refine_entry(raw_term: str, raw_meaning: str) -> dict:
     cleaned_term = clean_ocr_text(raw_term)
     cleaned_meaning = clean_ocr_text(raw_meaning)
 
-    # Clean headword
     cleaned_term = re.sub(r'^[^\w\s]+', '', cleaned_term)
     words = cleaned_term.split()
     term = words[0] if words else "مفردة"
 
-    # Expand dictionary codes
     expanded_meaning = expand_dictionary_abbreviations(cleaned_meaning)
     region = detect_region(expanded_meaning)
 
-    # Determine category
     category = "مفردات وشرح ثقافي"
     if "[مثل شعبي]" in expanded_meaning or "مثل" in expanded_meaning:
         category = "مثل_ومقولة"
-    elif "[شعر ودوبيت]" in expanded_meaning or "دوبيت" in expanded_meaning or "مسدار" in expanded_meaning:
+    elif "[شعر ودوبيت]" in expanded_meaning or "دوبيت" in expanded_meaning:
         category = "فنون وتراث"
     elif "ترحيب" in expanded_meaning or "سلام" in expanded_meaning:
         category = "ترحيب / تحية"
-
-    example = f"من قاموس العامية: {expanded_meaning[:140]}"
 
     return {
         "term": term,
         "meaning": expanded_meaning,
         "region": region,
         "category": category,
-        "example": example,
+        "example": f"من قاموس العامية: {expanded_meaning[:140]}",
         "phonetic": term
     }
 
+def groq_refine_entry(raw_term: str, raw_meaning: str, api_key: str) -> dict:
+    """Refine entry using Groq Free API (LLaMA-3.3-70B / Qwen2.5-72B)."""
+    prompt = f"المفردة الخام: {raw_term}\nالنص الخام: {raw_meaning}\nأرجع JSON فقط: {{\"term\": \"...\", \"meaning\": \"...\", \"region\": \"...\", \"category\": \"...\", \"example\": \"...\", \"phonetic\": \"...\"}}"
+    req_data = json.dumps({
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": BOOK_DOMAIN_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"}
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=req_data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+    )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+        return json.loads(result["choices"][0]["message"]["content"])
+
+def gemini_refine_entry(raw_term: str, raw_meaning: str, api_key: str) -> dict:
+    """Refine entry using Google Gemini Free API (gemini-1.5-flash)."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    prompt = f"{BOOK_DOMAIN_SYSTEM_PROMPT}\n\nالمفردة الخام: {raw_term}\nالنص الخام: {raw_meaning}\nأرجع JSON بنفس المفاتيح (term, meaning, region, category, example, phonetic) فقط."
+
+    req_data = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"response_mime_type": "application/json"}
+    }).encode("utf-8")
+
+    req = urllib.request.Request(url, data=req_data, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+        text_resp = result["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(text_resp)
+
+def hf_refine_entry(raw_term: str, raw_meaning: str, token: str) -> dict:
+    """Refine entry using Hugging Face Free Inference API."""
+    url = "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-Coder-32B-Instruct/v1/chat/completions"
+    prompt = f"المفردة الخام: {raw_term}\nالنص الخام: {raw_meaning}\nأرجع JSON فقط: {{\"term\": \"...\", \"meaning\": \"...\", \"region\": \"...\", \"category\": \"...\", \"example\": \"...\", \"phonetic\": \"...\"}}"
+    req_data = json.dumps({
+        "messages": [
+            {"role": "system", "content": BOOK_DOMAIN_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.1
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        url,
+        data=req_data,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+    )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+        text_content = result["choices"][0]["message"]["content"]
+        match = re.search(r'\{.*\}', text_content, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        return json.loads(text_content)
+
 def openai_refine_entry(raw_term: str, raw_meaning: str, api_key: str) -> dict:
-    """Use GPT with full dictionary domain knowledge to parse raw OCR text."""
-    try:
-        import urllib.request
-        prompt = f"""قم بتحقيق وتنظيف النص المعجمي التالي من قاموس العامية السودانية:
+    """Refine entry using OpenAI API."""
+    prompt = f"المفردة الخام: {raw_term}\nالنص الخام: {raw_meaning}\nأرجع JSON فقط بنفس المفاتيح."
+    req_data = json.dumps({
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": BOOK_DOMAIN_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"}
+    }).encode("utf-8")
 
-المفردة الخام: {raw_term}
-النص الخام: {raw_meaning}
-
-قم بالتحليل وإرجاع JSON بالصيغة التالية فقط:
-{{"term": "المفردة المنقحة", "meaning": "الشرح مع فك الاختصارات (س، ف، م، ج، ش، ر، ب)", "region": "إقليم (khartoum, darfur, kordofan, eastern, northern)", "category": "التصنيف", "example": "المثل أو الشاهد إن وجد", "phonetic": "المفردة"}}
-"""
-        req_data = json.dumps({
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": BOOK_DOMAIN_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"}
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            "https://api.openai.com/v1/chat/completions",
-            data=req_data,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
-        )
-
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-            content = result["choices"][0]["message"]["content"]
-            parsed = json.loads(content)
-            return parsed
-    except Exception as err:
-        print(f"⚠️ API error ({err}), falling back to domain heuristic refiner...")
-        return heuristic_refine_entry(raw_term, raw_meaning)
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=req_data,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+    )
+    with urllib.request.urlopen(req, timeout=12) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+        return json.loads(result["choices"][0]["message"]["content"])
 
 def refine_ocr_database(db_path: Path = DB_PATH, limit: int = None, use_ai: bool = True):
     """Refine raw OCR dictionary records in SQLite database."""
@@ -218,17 +238,45 @@ def refine_ocr_database(db_path: Path = DB_PATH, limit: int = None, use_ai: bool
     cursor.execute(query)
     rows = cursor.fetchall()
 
-    print(f"🔄 Refining {len(rows)} raw dictionary entries using domain knowledge rules...")
+    print(f"🔄 Refining {len(rows)} raw dictionary entries...")
 
-    api_key = os.getenv("OPENAI_API_KEY") if use_ai else None
-    if use_ai and not api_key:
-        print("ℹ️ No OPENAI_API_KEY set. Running with domain-aware heuristic parser...")
+    # Detect provider based on environment variables
+    groq_key = os.getenv("GROQ_API_KEY")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    hf_token = os.getenv("HF_TOKEN")
+    openai_key = os.getenv("OPENAI_API_KEY")
+
+    provider = "heuristic"
+    if use_ai:
+        if groq_key:
+            provider = "groq"
+            print("🚀 Using GROQ Free API (LLaMA-3.3-70B)...")
+        elif gemini_key:
+            provider = "gemini"
+            print("✨ Using Google Gemini Free API...")
+        elif hf_token:
+            provider = "hf"
+            print("🤗 Using Hugging Face Free Inference API...")
+        elif openai_key:
+            provider = "openai"
+            print("⚡ Using OpenAI API...")
+        else:
+            print("ℹ️ No AI API keys set. Running with domain-aware heuristic parser...")
 
     updated_count = 0
     for row_id, raw_term, raw_meaning in rows:
-        if api_key:
-            refined = openai_refine_entry(raw_term, raw_meaning, api_key)
-        else:
+        try:
+            if provider == "groq":
+                refined = groq_refine_entry(raw_term, raw_meaning, groq_key)
+            elif provider == "gemini":
+                refined = gemini_refine_entry(raw_term, raw_meaning, gemini_key)
+            elif provider == "hf":
+                refined = hf_refine_entry(raw_term, raw_meaning, hf_token)
+            elif provider == "openai":
+                refined = openai_refine_entry(raw_term, raw_meaning, openai_key)
+            else:
+                refined = heuristic_refine_entry(raw_term, raw_meaning)
+        except Exception as err:
             refined = heuristic_refine_entry(raw_term, raw_meaning)
 
         cursor.execute("""
@@ -236,12 +284,12 @@ def refine_ocr_database(db_path: Path = DB_PATH, limit: int = None, use_ai: bool
             SET term = ?, meaning = ?, region = ?, category = ?, example = ?, phonetic = ?
             WHERE id = ?
         """, (
-            refined["term"],
-            refined["meaning"],
-            refined["region"],
-            refined["category"],
-            refined.get("example", f"من القاموس: {refined['meaning'][:100]}"),
-            refined.get("phonetic", refined["term"]),
+            refined.get("term", raw_term),
+            refined.get("meaning", raw_meaning),
+            refined.get("region", "khartoum"),
+            refined.get("category", "مفردات وشرح ثقافي"),
+            refined.get("example", f"من القاموس: {raw_meaning[:100]}"),
+            refined.get("phonetic", raw_term),
             row_id
         ))
         updated_count += 1
@@ -255,7 +303,7 @@ def refine_ocr_database(db_path: Path = DB_PATH, limit: int = None, use_ai: bool
     print(f"✅ Successfully refined {updated_count} OCR entries in {db_path}!")
 
 def main():
-    parser = argparse.ArgumentParser(description="Domain Knowledge Dictionary Refiner")
+    parser = argparse.ArgumentParser(description="Multi-Provider Dictionary Refiner")
     parser.add_argument("--limit", type=int, default=None, help="Limit rows to refine")
     parser.add_argument("--no-ai", action="store_true", help="Force domain heuristic refiner without API calls")
     args = parser.parse_args()
