@@ -1,13 +1,6 @@
 """Make PDF Searchable Utility.
 Converts image-based or scanned Arabic PDF documents into searchable PDFs with
 an invisible text OCR overlay while strictly preserving the original visual page formatting.
-
-Features:
-- Page-by-page rendering and high-DPI image extraction.
-- EasyOCR line-by-line / word-by-word Arabic text recognition.
-- Transparent text layer overlay at exact OCR bounding box coordinates using PyMuPDF.
-- Arabic text shaping (arabic_reshaper + python-bidi) for accurate PDF font rendering.
-- Batch processing, page range filtering, and checkpoint save/resume for large documents (e.g. 1251 pages).
 """
 
 import os
@@ -27,7 +20,7 @@ import easyocr
 import cv2
 import numpy as np
 import arabic_reshaper
-from bidi.algorithm import get_display
+import torch
 
 DEFAULT_CHECKPOINT_PATH = ROOT_DIR / "data" / "processed" / "searchable_pdf_checkpoint.json"
 
@@ -45,7 +38,6 @@ def find_unicode_font(custom_path: str = None) -> str:
     for font_path in FONT_CANDIDATES:
         if os.path.exists(font_path):
             return font_path
-    # Return first existing TTF/OTF found in system
     for root, _, files in os.walk("/usr/share/fonts"):
         for file in files:
             if file.endswith((".ttf", ".otf")):
@@ -53,16 +45,27 @@ def find_unicode_font(custom_path: str = None) -> str:
     raise FileNotFoundError("No TTF/OTF Unicode font found on the system for PDF text embedding.")
 
 
-def prepare_arabic_for_pdf(text: str) -> str:
-    """Shape and reorder Arabic text for proper rendering in PDF fonts."""
-    if not text:
+def prepare_arabic_word_for_pdf(word: str) -> str:
+    """Shape Arabic word glyphs and reverse byte ordering so PDF text streams store visual left-to-right char sequence."""
+    if not word:
         return ""
     try:
-        reshaped = arabic_reshaper.reshape(text)
-        bidi_text = get_display(reshaped)
-        return bidi_text
+        reshaped = arabic_reshaper.reshape(word)
+        return reshaped[::-1]
     except Exception:
-        return text
+        return word
+
+
+def prepare_arabic_line_for_pdf(line_text: str) -> str:
+    """Shape individual words and order words Right-To-Left for accurate PDF text extraction and search."""
+    if not line_text:
+        return ""
+    try:
+        words = line_text.split()
+        shaped_words = [prepare_arabic_word_for_pdf(w) for w in words]
+        return " ".join(reversed(shaped_words))
+    except Exception:
+        return line_text
 
 
 def save_checkpoint(checkpoint_path: Path, last_page: int, pdf_path: str, output_path: str):
@@ -107,16 +110,19 @@ def convert_pdf_to_searchable(
     output_pdf: str,
     start_page: int = 1,
     end_page: int = None,
-    dpi: int = 200,
+    dpi: int = 150,
     use_gpu: bool = False,
     resume: bool = False,
     checkpoint_file: str = None,
     font_path: str = None,
-    save_interval: int = 20
+    save_interval: int = 10
 ):
     """Convert an input PDF to a searchable PDF with invisible text layer."""
     if not os.path.exists(input_pdf):
         raise FileNotFoundError(f"Input PDF file not found: {input_pdf}")
+
+    if use_gpu is None or use_gpu is True:
+        use_gpu = torch.cuda.is_available()
 
     cp_path = Path(checkpoint_file) if checkpoint_file else DEFAULT_CHECKPOINT_PATH
     active_font_path = find_unicode_font(font_path)
@@ -136,14 +142,14 @@ def convert_pdf_to_searchable(
             src_doc.close()
             return
         elif last_done > 0:
-            actual_start_page = last_done + 1
+            actual_start_page = max(start_page, last_done + 1)
             print(f"🔄 Resuming searchable PDF generation from page {actual_start_page}...")
 
     print(f"Initializing EasyOCR for Arabic (GPU={use_gpu})...")
     reader = easyocr.Reader(['ar'], gpu=use_gpu)
 
     out_doc = pymupdf.open()
-    if resume and os.path.exists(output_pdf) and actual_start_page > 1:
+    if os.path.exists(output_pdf) and actual_start_page > 1:
         try:
             existing_doc = pymupdf.open(output_pdf)
             out_doc.insert_pdf(existing_doc)
@@ -155,18 +161,15 @@ def convert_pdf_to_searchable(
 
     print(f"Processing pages {actual_start_page} to {end_page} of {total_pages}...")
 
-    # Load embedded font bytes once
     font_bytes = open(active_font_path, "rb").read()
 
     for page_idx in range(actual_start_page - 1, end_page):
         page_num = page_idx + 1
         page = src_doc[page_idx]
 
-        # 1. Preserve visual appearance by showing original PDF page content
         new_page = out_doc.new_page(width=page.rect.width, height=page.rect.height)
         new_page.show_pdf_page(page.rect, src_doc, page_idx)
 
-        # 2. Render high DPI image for EasyOCR analysis
         pix = page.get_pixmap(dpi=dpi)
         pix_bytes = pix.tobytes("png")
         enhanced_img = preprocess_page_image(pix_bytes)
@@ -203,7 +206,7 @@ def convert_pdf_to_searchable(
             y0, y1 = max(0, min(y_coords)), min(page.rect.height, max(y_coords))
 
             rect = pymupdf.Rect(x0, y0, x1, y1)
-            formatted_text = prepare_arabic_for_pdf(text)
+            formatted_text = prepare_arabic_line_for_pdf(text)
             fontsize = max(6, (y1 - y0) * 0.75)
 
             try:
@@ -229,7 +232,6 @@ def convert_pdf_to_searchable(
         save_checkpoint(cp_path, page_num, input_pdf, output_pdf)
         print(f"  Page {page_num}/{end_page} processed")
 
-        # Periodically save document to minimize I/O overhead on large PDFs (1251 pages)
         if (page_num % save_interval == 0) or (page_num == end_page):
             out_doc.save(output_pdf, incremental=False)
             print(f" Checkpoint and output PDF batch saved up to page {page_num}/{end_page}.")
@@ -245,12 +247,12 @@ def main():
     parser.add_argument("--output", "-o", type=str, required=True, help="Output searchable PDF file path")
     parser.add_argument("--start-page", type=int, default=1, help="Starting page number (1-based)")
     parser.add_argument("--end-page", type=int, default=None, help="Ending page number")
-    parser.add_argument("--dpi", type=int, default=200, help="DPI for OCR page rendering (default: 200)")
+    parser.add_argument("--dpi", type=int, default=150, help="DPI for OCR page rendering (default: 150)")
     parser.add_argument("--gpu", action="store_true", help="Enable GPU acceleration for EasyOCR")
     parser.add_argument("--resume", action="store_true", help="Resume from last checkpoint")
     parser.add_argument("--checkpoint", type=str, default=None, help="Path to custom checkpoint JSON file")
     parser.add_argument("--font-path", type=str, default=None, help="Path to TTF/OTF Unicode Arabic font")
-    parser.add_argument("--save-interval", type=int, default=20, help="Page batch interval for file saving")
+    parser.add_argument("--save-interval", type=int, default=10, help="Page batch interval for file saving")
 
     args = parser.parse_args()
 

@@ -4,11 +4,11 @@ import os
 import json
 import pytest
 import pymupdf
-from pathlib import Path
 
 from scripts.make_pdf_searchable import (
     convert_pdf_to_searchable,
-    prepare_arabic_for_pdf,
+    prepare_arabic_word_for_pdf,
+    prepare_arabic_line_for_pdf,
     load_checkpoint,
     save_checkpoint
 )
@@ -27,9 +27,9 @@ def temp_pdf_file(tmp_path):
     return str(pdf_path)
 
 
-def test_prepare_arabic_for_pdf():
-    text = "قاموس العامية"
-    shaped = prepare_arabic_for_pdf(text)
+def test_prepare_arabic_shaping():
+    line = "قاموس العامية"
+    shaped = prepare_arabic_line_for_pdf(line)
     assert isinstance(shaped, str)
     assert len(shaped) > 0
 
