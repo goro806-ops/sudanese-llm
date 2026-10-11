@@ -170,3 +170,16 @@ def test_ocr_refinement_and_cleanup():
     assert preface_section == "book_preface"
 
     assert standardize_category("مثل_ومقولة") == "مثل_ومقولة"
+
+
+def test_lexicon_reconstruction():
+    """Verify reconstruction logic for reversed OCR brackets and headword extraction."""
+    from scripts.reconstruct_lexicon import clean_ocr_noise, extract_headword
+
+    raw_text = "رضوة )س رضى . تكلم بالأعجمية رطن ) ف س"
+    cleaned = clean_ocr_noise(raw_text)
+    assert "[عامية سودانية]" in cleaned
+    assert "[أصل فصيح وعامي]" in cleaned
+
+    headword, meaning = extract_headword("ف", "تكلم بالأعجمية رطن")
+    assert headword == "تكلم"
