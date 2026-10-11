@@ -141,3 +141,32 @@ def test_translation_endpoints():
     assert res_post.status_code == 200
     post_json = res_post.json()
     assert "شخص" in post_json["translation"] or "إنسان" in post_json["translation"]
+
+
+def test_ocr_refinement_and_cleanup():
+    """Verify rule-based OCR string refiner, page section classification, and database cleanup."""
+    from scripts.refine_ocr_with_ai import heuristic_refine_entry, clean_ocr_text, expand_dictionary_abbreviations, classify_page_range
+    from scripts.cleanup_database import clean_ocr_noise_and_digits, standardize_category
+
+    raw_term = "^ أبجر"
+    raw_meaning = "أبجر (س) (دارفور) (٣٤) أوالمنتفخ البطن (ف) الغليظ (م) في المثل القديم (ش) في المسدار (مولدة)"
+
+    cleaned_text = clean_ocr_text(raw_meaning)
+    assert "^" not in cleaned_text
+
+    cleaned_digits = clean_ocr_noise_and_digits(raw_meaning)
+    assert "(٣٤)" not in cleaned_digits
+
+    expanded = expand_dictionary_abbreviations(raw_meaning)
+    assert "[عامية سودانية]" in expanded
+    assert "[إقليم دارفور]" in expanded
+    assert "[أصل فصيح]" in expanded
+
+    refined = heuristic_refine_entry(raw_term, raw_meaning)
+    assert refined["term"] == "أبجر"
+    assert refined["region"] == "darfur"
+
+    preface_section = classify_page_range("مقدمة", "مقدمة القاموس والتمهيد اللغوي")
+    assert preface_section == "book_preface"
+
+    assert standardize_category("مثل_ومقولة") == "مثل_ومقولة"
