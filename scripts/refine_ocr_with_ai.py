@@ -2,7 +2,7 @@
 """
 AI & Multi-Provider OCR Dictionary Refiner Script
 --------------------------------------------------
-Refines raw "blind" OCR text extracted from Prof. Awn Al-Sharif Qasim's 
+Refines raw "blind" OCR text extracted from Prof. Awn Al-Sharif Qasim's
 scanned reference book "قاموس العامية السودانية" in `sudanese_lexicon.db`.
 
 Book Structure & Page Ranges (from 1,251 page PDF):
@@ -202,7 +202,7 @@ def gemini_refine_entry(raw_term: str, raw_meaning: str, api_key: str) -> dict:
     """Refine entry using Google Gemini Free API (gemini-1.5-flash)."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     prompt = f"{BOOK_DOMAIN_SYSTEM_PROMPT}\n\nالمفردة الخام: {raw_term}\nالنص الخام: {raw_meaning}\nأرجع JSON بنفس المفاتيح (term, meaning, region, category, example, phonetic) فقط."
-    
+
     req_data = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"response_mime_type": "application/json"}
