@@ -183,3 +183,38 @@ def test_lexicon_reconstruction():
 
     headword, meaning = extract_headword("ف", "تكلم بالأعجمية رطن")
     assert headword == "تكلم"
+
+
+def test_universal_llm_adapters():
+    """Verify universal LLM prompt adapters and Modelfile integrity."""
+    from pathlib import Path
+    from scripts.universal_llm_adapters import (
+        get_openai_adapter, get_deepseek_adapter, get_gemini_adapter,
+        get_claude_adapter, get_ollama_adapter
+    )
+
+    # Test Modelfile exists
+    modelfile = Path("Modelfile")
+    assert modelfile.exists()
+    assert "llama3.3" in modelfile.read_text(encoding="utf-8")
+
+    # Test OpenAI adapter
+    oa = get_openai_adapter("ازيك", "سياق")
+    assert len(oa["messages"]) == 2
+    assert "سياق" in oa["messages"][1]["content"]
+
+    # Test DeepSeek adapter
+    ds = get_deepseek_adapter("ازيك")
+    assert ds["model"] == "deepseek-chat"
+
+    # Test Gemini adapter
+    gem = get_gemini_adapter("ازيك")
+    assert "contents" in gem
+
+    # Test Claude adapter
+    cl = get_claude_adapter("ازيك")
+    assert "system" in cl
+
+    # Test Ollama adapter
+    ol = get_ollama_adapter("ازيك", "deepseek-r1")
+    assert ol["model"] == "deepseek-r1"
