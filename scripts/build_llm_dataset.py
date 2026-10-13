@@ -28,7 +28,29 @@ def build_datasets():
     with open(raw_path, "r", encoding="utf-8") as f:
         knowledge_entries = json.load(f)
 
-    print(f"📦 Loaded {len(knowledge_entries)} knowledge entries for LLM dataset generation...")
+    print(f"📦 Loaded {len(knowledge_entries)} knowledge entries...")
+
+    # Load SQLite Lexicon entries
+    import sqlite3
+    db_path = Path("data/processed/sudanese_lexicon.db")
+    if db_path.exists():
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute("SELECT id, term, meaning, region, category FROM lexicon")
+        lex_rows = c.fetchall()
+        print(f"📖 Loaded {len(lex_rows)} lexicon entries from {db_path}...")
+        for row in lex_rows:
+            knowledge_entries.append({
+                "id": f"lex_{row[0]}",
+                "topic": row[1],
+                "region": row[3],
+                "category": row[4],
+                "content": f"المفردة: {row[1]} | المعنى والشرح: {row[2]}",
+                "source": "قاموس العامية السودانية"
+            })
+        conn.close()
+
+    print(f"🚀 Total training records to build: {len(knowledge_entries)}")
 
     chat_entries = []
     instruction_entries = []
@@ -47,7 +69,7 @@ def build_datasets():
         source = entry.get("source", "curated")
         entry_id = entry.get("id", "unk")
 
-        user_query = f"تحدث عن {topic} في إقليم {region} بالسودان والمعنى/الأهمية المرتبطة به."
+        user_query = f"ما معنى كلمة أو مفهوم '{topic}' في اللهجة والثقافة السودانية؟" if str(entry_id).startswith("lex_") else f"تحدث عن {topic} في إقليم {region} بالسودان والمعنى/الأهمية المرتبطة به."
         assistant_reply = content
 
         # 1. Chat format (OpenAI / HF SFT)
@@ -81,13 +103,13 @@ def build_datasets():
 
         # 3. Flat row for CSV & Parquet
         flat_rows.append({
-            "id": entry_id,
-            "region": region,
-            "category": category,
-            "topic": topic,
-            "query": user_query,
-            "response": assistant_reply,
-            "source": source
+            "id": str(entry_id),
+            "region": str(region),
+            "category": str(category),
+            "topic": str(topic),
+            "query": str(user_query),
+            "response": str(assistant_reply),
+            "source": str(source)
         })
 
     # Save JSONL Chat

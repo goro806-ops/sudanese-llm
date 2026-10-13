@@ -3,7 +3,7 @@
 This directory contains the standardized, ready-to-train LLM dataset for Sudanese regional dialects, culture, Nubian Rotana, and heritage.
 
 ## 📊 Dataset Statistics
-- **Total Records:** 229
+- **Total Records:** 10350
 - **Regions Covered:** Khartoum, Darfur, Kordofan, Eastern, Northern (Nubian Rotana)
 - **Supported Paradigms:** Chat SFT, Instruction Tuning, RAG Vector Indexing, Data Analytics
 
