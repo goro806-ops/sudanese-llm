@@ -1,17 +1,11 @@
 """
 Proper QLoRA Fine-tuning Script for Sudanese Dialects
 =====================================================
-This is a clean, runnable version that replaces the incomplete notebook.
+Runnable on Google Colab (T4 GPU) or any machine with a GPU.
 
-Requirements (Colab or local with GPU):
-    pip install -U torch transformers datasets peft bitsandbytes accelerate trl
+See improvements/training/COLAB_TRAIN.md for step-by-step Colab instructions.
 
-Usage on Google Colab:
-    1. Runtime → Change runtime type → T4 GPU
-    2. Upload this file or clone the repo
-    3. Run: python train_qlora.py
-
-After training, the adapters will be saved and can be pushed to Hugging Face.
+After training, adapters are saved and can be pushed to Hugging Face.
 """
 
 import os
@@ -37,7 +31,10 @@ from trl import SFTTrainer
 
 MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
 OUTPUT_DIR = "./sudanese-qlora-adapters"
+# Preferred path after combining batches (see COLAB_TRAIN.md)
 DATASET_PATH = "data/processed/llm_dataset/sudanese_llm_chat.jsonl"
+# Fallback: auto-combine improvements/data/conversations_batch*.jsonl
+BATCH_GLOB = "improvements/data/conversations_batch*.jsonl"
 MAX_SEQ_LENGTH = 512
 NUM_EPOCHS = 3
 BATCH_SIZE = 2
@@ -47,14 +44,41 @@ LORA_R = 16
 LORA_ALPHA = 32
 
 
+def resolve_dataset_path() -> str:
+    """Use combined dataset if present; otherwise merge batch files on the fly."""
+    preferred = Path(DATASET_PATH)
+    if preferred.exists():
+        return str(preferred)
+
+    # Try to find and merge batch files
+    root = Path(".")
+    batches = sorted(root.glob(BATCH_GLOB))
+    if not batches:
+        # Also try from repo root if script is run from improvements/training/
+        batches = sorted(Path("../..").glob("improvements/data/conversations_batch*.jsonl"))
+
+    if not batches:
+        raise FileNotFoundError(
+            f"No dataset found at {DATASET_PATH} and no batch files matched {BATCH_GLOB}.\n"
+            "Run: mkdir -p data/processed/llm_dataset && "
+            "cat improvements/data/conversations_batch*.jsonl > data/processed/llm_dataset/sudanese_llm_chat.jsonl"
+        )
+
+    preferred.parent.mkdir(parents=True, exist_ok=True)
+    with open(preferred, "w", encoding="utf-8") as out:
+        for b in batches:
+            out.write(b.read_text(encoding="utf-8"))
+            if not b.read_text(encoding="utf-8").endswith("\n"):
+                out.write("\n")
+    print(f"   Auto-merged {len(batches)} batch files → {preferred}")
+    return str(preferred)
+
+
 def load_sudanese_dataset(path: str) -> Dataset:
     """Load the chat-format JSONL dataset."""
     path = Path(path)
     if not path.exists():
-        raise FileNotFoundError(
-            f"Dataset not found at {path}. "
-            "Make sure you have generated data/processed/llm_dataset/sudanese_llm_chat.jsonl"
-        )
+        raise FileNotFoundError(f"Dataset not found at {path}")
 
     try:
         ds = load_dataset("json", data_files=str(path), split="train")
@@ -63,12 +87,14 @@ def load_sudanese_dataset(path: str) -> Dataset:
         records = []
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
-                records.append(json.loads(line))
+                line = line.strip()
+                if line:
+                    records.append(json.loads(line))
         return Dataset.from_list(records)
 
 
 def formatting_prompts_func(example):
-    """Convert chat messages into a single training text."""
+    """Convert chat messages into a single training text (Qwen-style)."""
     messages = example.get("messages", [])
     if not messages:
         return {"text": ""}
@@ -93,8 +119,9 @@ def main():
     print("=" * 60)
 
     print("\n[1/5] Loading dataset...")
-    dataset = load_sudanese_dataset(DATASET_PATH)
-    print(f"   Loaded {len(dataset)} examples")
+    data_path = resolve_dataset_path()
+    dataset = load_sudanese_dataset(data_path)
+    print(f"   Loaded {len(dataset)} examples from {data_path}")
 
     dataset = dataset.map(formatting_prompts_func, remove_columns=dataset.column_names)
     dataset = dataset.filter(lambda x: len(x["text"].strip()) > 20)
@@ -140,7 +167,7 @@ def main():
         per_device_train_batch_size=BATCH_SIZE,
         gradient_accumulation_steps=GRAD_ACCUM,
         learning_rate=LEARNING_RATE,
-        logging_steps=10,
+        logging_steps=5,
         save_strategy="epoch",
         fp16=False,
         bf16=True,
@@ -169,8 +196,7 @@ def main():
 
     print("\n✅ Training complete!")
     print(f"Adapters saved to: {OUTPUT_DIR}")
-    print("You can now load them with:")
-    print(f'  model = PeftModel.from_pretrained(base_model, "{OUTPUT_DIR}")')
+    print("Load with: PeftModel.from_pretrained(base_model, \"sudanese-qlora-adapters\")")
 
 
 if __name__ == "__main__":

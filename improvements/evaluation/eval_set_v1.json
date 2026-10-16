@@ -1,0 +1,12 @@
+[
+  {"id": "e1", "region": "khartoum", "input": "ازيك يا زول؟", "expected_keywords": ["حبابك", "تمام", "الحمد"], "notes": "Greeting authenticity"},
+  {"id": "e2", "region": "darfur", "input": "كيف الحال في الفاشر؟", "expected_keywords": ["عوافي", "أبشر"], "notes": "Darfur greeting"},
+  {"id": "e3", "region": "kordofan", "input": "شنو أشهر حاجة في كردفان؟", "expected_keywords": ["صمغ", "مردوم", "خيراً"], "notes": "Regional knowledge"},
+  {"id": "e4", "region": "eastern", "input": "شنو معنى دابايوا؟", "expected_keywords": ["بجا", "سلام", "تحية"], "notes": "Eastern vocabulary"},
+  {"id": "e5", "region": "northern", "input": "مسكاقمي كيف الحال؟", "expected_keywords": ["إيقا", "كوي", "مسكاقمي"], "notes": "Nubian Rotana"},
+  {"id": "e6", "region": "khartoum", "input": "شنو معنى مافي عوجة؟", "expected_keywords": ["مشكلة", "تمام"], "notes": "Vocabulary"},
+  {"id": "e7", "region": "general", "input": "بتتكلم مصري؟", "expected_keywords": ["سودان", "زول", "لا"], "notes": "Reject other dialects"},
+  {"id": "e8", "region": "northern", "input": "علمني كلمة نوبية للماء", "expected_keywords": ["إسي"], "notes": "Nubian vocab"},
+  {"id": "e9", "region": "darfur", "input": "ضيف جاي، شنو أقدم ليه؟", "expected_keywords": ["عصيدة", "كرم", "مضيف"], "notes": "Hospitality"},
+  {"id": "e10", "region": "khartoum", "input": "ترجم زول للفصحى", "expected_keywords": ["رجل", "شخص", "إنسان"], "notes": "Translation"}
+]

@@ -10,60 +10,50 @@ Any LLM can understand and generate natural, regionally accurate Sudanese Arabic
 - [x] Strong system prompts + region-specific prompts
 - [x] Few-shot examples
 - [x] Model-agnostic client
-- [x] Improved semantic RAG
-- [x] Runnable QLoRA training script
-- [x] Expanded seed knowledge base
-- [x] Evaluation rubric
-- [x] Contribution template
+- [x] Semantic RAG
+- [x] QLoRA training script (auto-merges batch files)
+- [x] Expanded knowledge seed
+- [x] Evaluation rubric + **eval_set_v1.json** (10 held-out prompts)
+- [x] Colab guide
 
 ---
 
 ## Phase 2 – Data Scale 🔄 IN PROGRESS
 
-- [x] Batches 1–4
-- [x] **~85 multi-turn conversational examples**
-- [x] All 5 regions + food, travel, emotion, translation, Nubian depth
-- [ ] Reach 500+ high-quality conversational examples
+- [x] Batches 1–5
+- [x] **~100 multi-turn conversational examples**
+- [x] All 5 regions covered
+- [ ] 500+ conversations
 - [ ] Native-speaker verification
 
-**Data:** `conversations_batch1.jsonl` … `batch4.jsonl`  
-**How to combine:** see `data/README_DATA.md` and `training/COLAB_TRAIN.md`
+---
+
+## Phase 3 – Model Quality 🟡 READY
+
+- [x] Training script + Colab guide
+- [x] Dataset auto-discovery in train_qlora.py
+- [x] Eval set v1 for scoring
+- [ ] Run first QLoRA training (on Colab)
+- [ ] Publish adapters
+- [ ] Score with rubric + eval set
 
 ---
 
-## Phase 3 – Model Quality 🟡 READY TO START
+## Phase 4 – Usability ✅
 
-- [x] Training script ready
-- [x] Colab guide ready (`training/COLAB_TRAIN.md`)
-- [x] Dataset ready to combine and train
-- [ ] Run first QLoRA training
-- [ ] Publish adapters on Hugging Face
-- [ ] Evaluate with the rubric
-
----
-
-## Phase 4 – Usability ✅ MOSTLY DONE
-
-- [x] System prompts for any LLM
-- [x] Model-agnostic client
+- [x] Prompts + client for any LLM
 
 ---
 
 ## Phase 5 – Measurement
 
-- [ ] Public test set + native speaker ratings
+- [x] Eval set v1 (starter)
+- [ ] Expand to 100+ rated examples
 
 ---
 
 ## Definition of Goal Reached
 
-Strong base model + prompts + RAG + (optional) adapters  
-score **≥ 4.2 / 5** on the native-speaker rubric across regions.
+Base model + prompts + RAG + (optional) adapters ≥ **4.2 / 5** on native-speaker rubric.
 
----
-
-## Immediate next step
-
-**Run the first training on Colab** using `improvements/training/COLAB_TRAIN.md`.
-
-Snowball is rolling toward the goal.
+Snowball continues.
