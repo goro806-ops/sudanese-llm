@@ -7,53 +7,52 @@ Any LLM can understand and generate natural, regionally accurate Sudanese Arabic
 
 ## Phase 1 – Foundation ✅ COMPLETE
 
-- [x] Strong system prompts + region-specific prompts
-- [x] Few-shot examples
+- [x] Strong system prompts + region prompts + few-shots
 - [x] Model-agnostic client
 - [x] Semantic RAG
-- [x] QLoRA training script (auto-merges batches)
-- [x] Colab guide
-- [x] Evaluation rubric + eval_set_v1
+- [x] QLoRA script + Colab guide
+- [x] Eval rubric + eval_set_v1
+- [x] **demo_prompts.py** (zero GPU — try immediately)
 
 ---
 
-## Phase 2 – Data Scale 🔄 IN PROGRESS
+## Phase 2 – Data Scale 🔄
 
-- [x] Batches 1–5 (~100 curated conversations)
-- [x] **External sources documented** (`data/SOURCES.md`)
-- [x] **Import converter** (`scripts/import_external.py` for ArSyra / Flores / generic)
-- [ ] Import ArSyra sample (when license accepted)
-- [ ] 500+ total high-quality conversations
+- [x] Batches 1–6 (**~112 conversations**)
+- [x] External sources guide + import_external.py
+- [ ] Import ArSyra / more scale
+- [ ] 500+ conversations
 - [ ] Native-speaker verification
 
 ---
 
 ## Phase 3 – Model Quality 🟡 READY
 
-- [x] Training script + Colab guide + auto dataset merge
-- [ ] Run first QLoRA on Colab
-- [ ] Publish adapters
-- [ ] Score with eval set + rubric
+- [x] Train script + auto-merge batches
+- [ ] First Colab QLoRA run
+- [ ] Publish adapters + score
 
 ---
 
 ## Phase 4 – Usability ✅
 
-- [x] Prompts + client for any LLM
+- [x] Prompts + client + **local demo script**
 
 ---
 
 ## Phase 5 – Measurement
 
 - [x] Eval set v1
-- [ ] Expand rated set + native scores
 
 ---
 
-## Definition of Goal Reached
+## Try right now (no GPU)
 
-Base model + prompts + RAG + (optional) adapters ≥ **4.2 / 5** on native-speaker rubric.
+```bash
+cd sudanese-llm
+python improvements/scripts/demo_prompts.py --region northern --message "مسكاقمي"
+```
 
-**Next:** Colab first train, and/or pull ArSyra sample through the importer.
+Copy output into any LLM.
 
 Snowball continues.
