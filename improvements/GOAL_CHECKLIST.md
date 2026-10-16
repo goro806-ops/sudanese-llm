@@ -20,24 +20,25 @@ Any LLM can understand and generate natural, regionally accurate Sudanese Arabic
 
 ## Phase 2 – Data Scale 🔄 IN PROGRESS
 
-- [x] Conversational Batch 1 (26 examples)
-- [x] Conversational Batch 2 (24 examples)
-- [x] **Total: 50 multi-turn conversational examples** across all 5 regions
+- [x] Batch 1 (26) + Batch 2 (24) + Batch 3 (20)
+- [x] **Total: 70 multi-turn conversational examples**
+- [x] All 5 regions covered with multi-turn, vocabulary, culture, translation, edge cases
 - [ ] Reach 500+ high-quality conversational examples
 - [ ] Reach 3,000+ total training records
-- [ ] More parallel MSA ↔ Sudanese pairs
 - [ ] Native-speaker verification
 
-**Current data:**
-- `conversations_batch1.jsonl` + `conversations_batch2.jsonl` = 50 conversations
-- `expanded_sudanese_knowledge.json` = 45 knowledge entries
-- Original project datasets still available
+**Data files:**
+- `conversations_batch1.jsonl`
+- `conversations_batch2.jsonl`
+- `conversations_batch3.jsonl`
+- `expanded_sudanese_knowledge.json` (45 entries)
+- See `data/README_DATA.md` for how to combine for training
 
 ---
 
 ## Phase 3 – Model Quality
 
-- [ ] Train first QLoRA adapters on the new conversational data
+- [ ] Train first QLoRA adapters (script ready + 70 conversations ready)
 - [ ] Publish adapters on Hugging Face
 - [ ] Evaluate with the rubric
 
@@ -47,7 +48,6 @@ Any LLM can understand and generate natural, regionally accurate Sudanese Arabic
 
 - [x] System prompts ready for any LLM
 - [x] Model-agnostic client ready
-- [ ] One-line examples for Grok / GPT / Claude / Ollama
 
 ---
 
@@ -66,8 +66,8 @@ score **≥ 4.2 / 5** on the native-speaker rubric across regions.
 
 ## Next highest-leverage actions
 
-1. Keep adding conversation batches
-2. Run first real training on Colab with the 50 examples + knowledge data
-3. Integrate into main FastAPI app
+1. Keep adding conversation batches (or real native data)
+2. **Run first real QLoRA training** on Colab with the 70 examples
+3. Integrate improved components into main FastAPI app
 
 Snowball is rolling.
