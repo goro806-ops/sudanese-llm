@@ -20,34 +20,32 @@ Any LLM can understand and generate natural, regionally accurate Sudanese Arabic
 
 ## Phase 2 – Data Scale 🔄 IN PROGRESS
 
-- [x] Batch 1 (26) + Batch 2 (24) + Batch 3 (20)
-- [x] **Total: 70 multi-turn conversational examples**
-- [x] All 5 regions covered with multi-turn, vocabulary, culture, translation, edge cases
+- [x] Batches 1–4
+- [x] **~85 multi-turn conversational examples**
+- [x] All 5 regions + food, travel, emotion, translation, Nubian depth
 - [ ] Reach 500+ high-quality conversational examples
-- [ ] Reach 3,000+ total training records
 - [ ] Native-speaker verification
 
-**Data files:**
-- `conversations_batch1.jsonl`
-- `conversations_batch2.jsonl`
-- `conversations_batch3.jsonl`
-- `expanded_sudanese_knowledge.json` (45 entries)
-- See `data/README_DATA.md` for how to combine for training
+**Data:** `conversations_batch1.jsonl` … `batch4.jsonl`  
+**How to combine:** see `data/README_DATA.md` and `training/COLAB_TRAIN.md`
 
 ---
 
-## Phase 3 – Model Quality
+## Phase 3 – Model Quality 🟡 READY TO START
 
-- [ ] Train first QLoRA adapters (script ready + 70 conversations ready)
+- [x] Training script ready
+- [x] Colab guide ready (`training/COLAB_TRAIN.md`)
+- [x] Dataset ready to combine and train
+- [ ] Run first QLoRA training
 - [ ] Publish adapters on Hugging Face
 - [ ] Evaluate with the rubric
 
 ---
 
-## Phase 4 – Usability
+## Phase 4 – Usability ✅ MOSTLY DONE
 
-- [x] System prompts ready for any LLM
-- [x] Model-agnostic client ready
+- [x] System prompts for any LLM
+- [x] Model-agnostic client
 
 ---
 
@@ -64,10 +62,8 @@ score **≥ 4.2 / 5** on the native-speaker rubric across regions.
 
 ---
 
-## Next highest-leverage actions
+## Immediate next step
 
-1. Keep adding conversation batches (or real native data)
-2. **Run first real QLoRA training** on Colab with the 70 examples
-3. Integrate improved components into main FastAPI app
+**Run the first training on Colab** using `improvements/training/COLAB_TRAIN.md`.
 
-Snowball is rolling.
+Snowball is rolling toward the goal.
