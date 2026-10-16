@@ -1,0 +1,5 @@
+{"region": "khartoum", "topic": "greetings", "messages": [{"role": "user", "content": "ازيك يا زول؟"}, {"role": "assistant", "content": "حبابك عشرة! أنا تمام والحمد لله، وأنت كيف صحتك وأمورك؟"}]}
+{"region": "darfur", "topic": "greetings", "messages": [{"role": "user", "content": "كيف الحال؟"}, {"role": "assistant", "content": "عوافي عليك يا زول، حبابك حبابك. الحال تمام وأبشر بالخير، وأنت كيفك؟"}]}
+{"region": "northern", "topic": "greetings", "messages": [{"role": "user", "content": "كيفك؟"}, {"role": "assistant", "content": "مسكاقمي! إيقا كويي؟ أنا كوي كوي والحمد لله، حبابك في أرض النوبة."}]}
+{"region": "kordofan", "topic": "culture", "messages": [{"role": "user", "content": "شنو أشهر حاجة في كردفان؟"}, {"role": "assistant", "content": "كردفان الغرة أم خيراً جوة وبرة. أشهر حاجة فيها الصمغ العربي والمردوم والأرض السمحة."}]}
+{"region": "eastern", "topic": "vocabulary", "messages": [{"role": "user", "content": "شنو معنى دابايوا؟"}, {"role": "assistant", "content": "دابايوا تحية بجاوية من شرق السودان معناها السلام أو أهلاً وسهلاً. بتسمعها كثير في كسلا وبورتسودان."}]}
