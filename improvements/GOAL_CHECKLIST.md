@@ -10,7 +10,7 @@ Any LLM can understand and generate natural, regionally accurate Sudanese Arabic
 - [x] Strong system prompts + region-specific prompts
 - [x] Few-shot examples
 - [x] Model-agnostic client
-- [x] Improved semantic RAG (sentence-transformers + Chroma)
+- [x] Improved semantic RAG
 - [x] Runnable QLoRA training script
 - [x] Expanded seed knowledge base
 - [x] Evaluation rubric
@@ -18,60 +18,56 @@ Any LLM can understand and generate natural, regionally accurate Sudanese Arabic
 
 ---
 
-## Phase 2 – Data Scale (IN PROGRESS)
+## Phase 2 – Data Scale 🔄 IN PROGRESS
 
-- [x] First high-quality conversational batch (26 multi-turn examples across all 5 regions)
-- [ ] Reach **500+** high-quality conversational examples
-- [ ] Reach **3,000+** total training records
-- [ ] Parallel data: MSA ↔ Sudanese, English ↔ Sudanese
-- [ ] Stronger Nubian Rotana coverage
-- [ ] Native-speaker verified examples
+- [x] Conversational Batch 1 (26 examples)
+- [x] Conversational Batch 2 (24 examples)
+- [x] **Total: 50 multi-turn conversational examples** across all 5 regions
+- [ ] Reach 500+ high-quality conversational examples
+- [ ] Reach 3,000+ total training records
+- [ ] More parallel MSA ↔ Sudanese pairs
+- [ ] Native-speaker verification
 
-**Current data assets:**
-- `improvements/data/expanded_sudanese_knowledge.json` (45 knowledge entries)
-- `improvements/data/conversations_batch1.jsonl` (26 multi-turn conversations)
+**Current data:**
+- `conversations_batch1.jsonl` + `conversations_batch2.jsonl` = 50 conversations
+- `expanded_sudanese_knowledge.json` = 45 knowledge entries
 - Original project datasets still available
 
 ---
 
 ## Phase 3 – Model Quality
 
-- [ ] Train first QLoRA adapters using the new data
+- [ ] Train first QLoRA adapters on the new conversational data
 - [ ] Publish adapters on Hugging Face
 - [ ] Evaluate with the rubric
 
 ---
 
-## Phase 4 – Usability for Any LLM
+## Phase 4 – Usability
 
 - [x] System prompts ready for any LLM
 - [x] Model-agnostic client ready
-- [ ] One-line integration examples for Grok / GPT / Claude / Ollama
-- [ ] Optional Sudanese Skill for agents
+- [ ] One-line examples for Grok / GPT / Claude / Ollama
 
 ---
 
-## Phase 5 – Measurement & Trust
+## Phase 5 – Measurement
 
-- [ ] Public test set of 100+ examples
-- [ ] Native speaker ratings (3–5 raters from different regions)
-- [ ] Scorecard / leaderboard
+- [ ] Public test set + native speaker ratings
 
 ---
 
-## Definition of “Goal Reached”
+## Definition of Goal Reached
 
-A strong base model + our system prompt + RAG + (optional) adapters  
-consistently scores **≥ 4.2 / 5** on the evaluation rubric  
-across regions and task types, according to native speakers.
+Strong base model + prompts + RAG + (optional) adapters  
+score **≥ 4.2 / 5** on the native-speaker rubric across regions.
 
 ---
 
-## Immediate Next Actions
+## Next highest-leverage actions
 
-1. Keep adding conversational batches (highest leverage)
-2. Run first real QLoRA training on Colab
-3. Recruit native speakers for evaluation
-4. Integrate improved components into main FastAPI app
+1. Keep adding conversation batches
+2. Run first real training on Colab with the 50 examples + knowledge data
+3. Integrate into main FastAPI app
 
-The snowball is rolling.
+Snowball is rolling.
