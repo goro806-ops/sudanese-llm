@@ -2,7 +2,8 @@
 QLoRA Fine-tuning for Sudanese Dialects
 =========================================
 Compatible with current transformers + trl (SFTConfig).
-Colab T4: see improvements/training/COLAB_TRAIN.md
+Auto-selects fp16 on T4 (compute capability < 8) and bf16 on Ampere+.
+Colab: see improvements/training/COLAB_TRAIN.md
 """
 
 import json
@@ -17,7 +18,6 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
-# Prefer modern TRL API
 try:
     from trl import SFTTrainer, SFTConfig
     USE_SFT_CONFIG = True
@@ -38,6 +38,14 @@ GRAD_ACCUM = 8
 LEARNING_RATE = 2e-4
 LORA_R = 16
 LORA_ALPHA = 32
+
+
+def supports_bf16() -> bool:
+    """bf16 matmul needs compute capability >= 8.0 (Ampere+). T4 is 7.5."""
+    if not torch.cuda.is_available():
+        return False
+    major, _ = torch.cuda.get_device_capability(0)
+    return major >= 8
 
 
 def resolve_dataset_path() -> str:
@@ -106,6 +114,11 @@ def main():
     print("Sudanese Dialect QLoRA Fine-tuning")
     print("=" * 60)
 
+    use_bf16 = supports_bf16()
+    compute_dtype = torch.bfloat16 if use_bf16 else torch.float16
+    print(f"\nPrecision: {'bf16' if use_bf16 else 'fp16'} "
+          f"(CUDA capability {torch.cuda.get_device_capability(0) if torch.cuda.is_available() else 'n/a'})")
+
     print("\n[1/5] Loading dataset...")
     data_path = resolve_dataset_path()
     dataset = load_sudanese_dataset(data_path)
@@ -123,7 +136,7 @@ def main():
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_compute_dtype=compute_dtype,
         bnb_4bit_use_double_quant=True,
     )
 
@@ -132,7 +145,7 @@ def main():
         quantization_config=bnb_config,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=compute_dtype,
     )
     model = prepare_model_for_kbit_training(model)
 
@@ -160,8 +173,8 @@ def main():
         learning_rate=LEARNING_RATE,
         logging_steps=5,
         save_strategy="epoch",
-        fp16=False,
-        bf16=True,
+        fp16=not use_bf16,
+        bf16=use_bf16,
         optim="paged_adamw_8bit",
         lr_scheduler_type="cosine",
         report_to="none",
@@ -169,7 +182,6 @@ def main():
     )
 
     if USE_SFT_CONFIG:
-        # Modern TRL: SFTConfig replaces TrainingArguments + packing/max_seq
         args = SFTConfig(
             **common,
             max_length=MAX_SEQ_LENGTH,
@@ -183,7 +195,6 @@ def main():
             processing_class=tokenizer,
         )
     else:
-        # Older TRL fallback
         args = TrainingArguments(**common)
         trainer = SFTTrainer(
             model=model,
