@@ -1,78 +1,91 @@
-# Sudanese Dialect QLoRA – Colab Quick Start (Fixed)
+# Sudanese Dialect QLoRA – Colab (Working Recipe)
 
-## 1. Runtime
-Runtime → Change runtime type → **T4 GPU**
+## Critical checks before anything else
 
-## 2. Clone
+1. **Runtime → Change runtime type → T4 GPU** (not CPU)
+2. **Runtime → Restart session** after changing GPU
+3. Do **not** use `pip install -U torch` (breaks torchvision on Colab)
+
+---
+
+## Cell 1 – Clone (repo root)
+
 ```python
+%cd /content
+!rm -rf sudanese-llm
 !git clone https://github.com/goro806-ops/sudanese-llm.git
-%cd sudanese-llm
+%cd /content/sudanese-llm
+!ls improvements/training/
 ```
 
-## 3. Install (IMPORTANT — do not upgrade torch with -U)
-
-Colab already has torch + CUDA. Upgrading torch alone breaks torchvision and then transformers/peft.
+## Cell 2 – Safe install
 
 ```python
-# Uninstall conflicting bits if you already ran a broken install
+# Fix dependency chaos from previous -U installs
 !pip uninstall -y torchvision torchaudio 2>/dev/null
-
-# Install training stack WITHOUT forcing a new torch
+!pip install -q "numpy<2.3" "pandas<2.4"
 !pip install -q transformers datasets peft bitsandbytes accelerate trl
-
-# Reinstall torchvision to match the torch Colab already has
 !pip install -q torchvision --no-cache-dir
 ```
 
-If you still see `torchvision::nms does not exist`, run this and **restart runtime**, then re-run install:
+## Cell 3 – Verify (must pass)
 
 ```python
-!pip install -q --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu121
-!pip install -q transformers datasets peft bitsandbytes accelerate trl
+import torch, numpy
+from transformers import TrainingArguments, AutoModelForCausalLM
+from peft import LoraConfig
+from trl import SFTTrainer
+
+print("torch", torch.__version__)
+print("numpy", numpy.__version__)
+print("CUDA available:", torch.cuda.is_available())
+assert torch.cuda.is_available(), "Switch runtime to T4 GPU and Restart session"
+print("imports OK")
 ```
 
-## 4. Prepare dataset
+If CUDA is False → you are still on CPU. Change runtime to **T4 GPU**, restart, re-run from Cell 1.
+
+## Cell 4 – Dataset
+
 ```python
 !mkdir -p data/processed/llm_dataset
 !cat improvements/data/conversations_batch*.jsonl > data/processed/llm_dataset/sudanese_llm_chat.jsonl
 !wc -l data/processed/llm_dataset/sudanese_llm_chat.jsonl
 ```
 
-## 5. Verify imports (optional but recommended)
-```python
-import torch
-from transformers import TrainingArguments, AutoModelForCausalLM
-from peft import LoraConfig
-from trl import SFTTrainer
-print("torch", torch.__version__, "CUDA", torch.cuda.is_available())
-print("imports OK")
-```
+Expect ~100+ lines.
 
-## 6. Train
+## Cell 5 – Train
+
 ```python
 !python improvements/training/train_qlora.py
 ```
 
-Adapters save to `./sudanese-qlora-adapters`.
+15–40 min on T4. Success creates `./sudanese-qlora-adapters/`.
 
-## 7. Upload to Hugging Face (only after training succeeds)
+## Cell 6 – Upload (only after success)
+
 ```python
-from huggingface_hub import login, HfApi
-login()
-
 from pathlib import Path
-assert Path("./sudanese-qlora-adapters").is_dir(), "Train first — adapters folder missing"
-
-api = HfApi()
-api.upload_folder(
+from huggingface_hub import login, HfApi
+assert Path("./sudanese-qlora-adapters").is_dir(), "Train first"
+login()
+HfApi().upload_folder(
     folder_path="./sudanese-qlora-adapters",
-    repo_id="goro806/sudanese-qlora-adapters",  # change if needed
+    repo_id="goro806/sudanese-qlora-adapters",
     repo_type="model",
 )
 ```
 
-## Notes
-- Batches 1–6 ≈ 100+ conversation examples
-- Base model: Qwen2.5-7B-Instruct
-- First run may take ~15–40 min on T4 depending on steps
-- Do **not** run the HF upload cell until training finishes
+---
+
+## Errors this recipe avoids
+
+| Error | Cause |
+|-------|--------|
+| `torchvision::nms does not exist` | Upgraded torch without matching torchvision |
+| `numpy.dtypes has no attribute StringDType` | numpy 2.5+ vs transformers/trl |
+| QLoRA on CPU | Runtime set to Standard (CPU) |
+| No adapters folder | Training never finished |
+
+Do not let Colab AI rewrite `train_qlora.py` mid-run. Use the script from git as-is.
