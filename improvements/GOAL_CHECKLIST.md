@@ -1,60 +1,49 @@
 # Path to the Goal – Checklist
 
 **Ultimate Goal**  
-Any LLM can understand and generate natural, regionally accurate Sudanese Arabic (Khartoum, Darfur, Kordofan, Eastern, Northern/Nubian Rotana) with high authenticity.
+Any LLM can understand and generate natural, regionally accurate Sudanese Arabic with high authenticity (≥4.2/5).
 
 ---
 
-## Phase 1 – Foundation ✅ COMPLETE
+## Phase 1 – Foundation ✅
 
-- [x] System prompts + region prompts + few-shots
-- [x] Model-agnostic client
-- [x] Semantic RAG
-- [x] QLoRA script (T4-safe: AMP off, fp32 LoRA)
-- [x] Colab guide
-- [x] Eval rubric + eval_set_v1
-- [x] demo_prompts.py
+- [x] Prompts, client, RAG, demo, eval rubric
+- [x] T4-safe QLoRA script
+- [x] **infer_sudanese.py** (region-strong system prompts + HF adapters)
 
 ---
 
-## Phase 2 – Data Scale 🔄
+## Phase 2 – Data 🔄
 
-- [x] Batches 1–6 (~112 conversations)
-- [x] External sources guide + import_external.py
-- [ ] Import ArSyra / more scale
+- [x] Batches 1–7 (**~126 conversations**)
+- [x] Stronger greetings + Nubian Rotana examples in batch 7
+- [x] External sources + import script
 - [ ] 500+ conversations
-- [ ] Native-speaker verification
+- [ ] Native verification
 
 ---
 
-## Phase 3 – Model Quality ✅ FIRST TRAIN DONE
+## Phase 3 – Model ✅ FIRST ADAPTERS LIVE
 
-- [x] **First QLoRA run on Colab T4 (2026-10-18)**
-  - 112 examples, 3 epochs, 21 steps
-  - Loss: 3.605 → 1.558 | token accuracy: 0.45 → 0.68
-  - Adapters: `./sudanese-qlora-adapters`
-- [ ] Upload adapters to Hugging Face
-- [ ] Score with eval_set_v1 + rubric
-- [ ] Retrain when data ≥ 500
+- [x] QLoRA on Colab T4 (loss 3.6→1.56)
+- [x] **HF: https://huggingface.co/goro806/sudanese-qlora-adapters**
+- [x] Inference test (~3.7/5 first pass)
+- [ ] Retrain after batch 7+ merge
+- [ ] Native rubric ≥ 4.2
 
 ---
 
 ## Phase 4 – Usability ✅
 
-- [x] Prompts + client + demo (works without adapters)
-- [ ] Inference notebook loading base + adapters
+- [x] Prompts-only path
+- [x] Adapter path on HF
+- [x] Stronger region prompts at inference
 
 ---
 
 ## Phase 5 – Measurement
 
-- [x] Eval set v1
-- [ ] Native scores ≥ 4.2 / 5
+- [x] eval_set_v1 + keyword proxy script
+- [ ] Native scores
 
----
-
-## Definition of Goal Reached
-
-Base + prompts + RAG + adapters ≥ **4.2 / 5** on native-speaker rubric.
-
-**Milestone unlocked:** first Sudanese dialect adapters exist.
+Snowball continues.
