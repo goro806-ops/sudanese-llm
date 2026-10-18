@@ -1,9 +1,8 @@
 """
 QLoRA Fine-tuning for Sudanese Dialects
 =========================================
-Compatible with current transformers + trl (SFTConfig).
-Auto-selects fp16 on T4 (compute capability < 8) and bf16 on Ampere+.
-Colab: see improvements/training/COLAB_TRAIN.md
+T4-safe: fp16 AMP + LoRA weights in float32 (no bf16 GradScaler path).
+Ampere+: bf16 when compute capability >= 8.0.
 """
 
 import json
@@ -41,7 +40,6 @@ LORA_ALPHA = 32
 
 
 def supports_bf16() -> bool:
-    """bf16 matmul needs compute capability >= 8.0 (Ampere+). T4 is 7.5."""
     if not torch.cuda.is_available():
         return False
     major, _ = torch.cuda.get_device_capability(0)
@@ -60,9 +58,7 @@ def resolve_dataset_path() -> str:
 
     if not batches:
         raise FileNotFoundError(
-            f"No dataset at {DATASET_PATH} and no {BATCH_GLOB}. "
-            "Run: cat improvements/data/conversations_batch*.jsonl > "
-            "data/processed/llm_dataset/sudanese_llm_chat.jsonl"
+            f"No dataset at {DATASET_PATH} and no {BATCH_GLOB}."
         )
 
     preferred.parent.mkdir(parents=True, exist_ok=True)
@@ -109,15 +105,27 @@ def formatting_prompts_func(example):
     return {"text": "\n".join(parts)}
 
 
+def force_trainable_fp32(model):
+    """LoRA/trainable weights must not be bf16 on T4 (GradScaler crash)."""
+    cast = 0
+    for _, param in model.named_parameters():
+        if param.requires_grad and param.dtype != torch.float32:
+            param.data = param.data.to(torch.float32)
+            cast += 1
+    if cast:
+        print(f"   Cast {cast} trainable tensors → float32")
+
+
 def main():
     print("=" * 60)
     print("Sudanese Dialect QLoRA Fine-tuning")
     print("=" * 60)
 
     use_bf16 = supports_bf16()
+    # On T4: pure fp16 AMP; compute dtype float16 for 4-bit math
     compute_dtype = torch.bfloat16 if use_bf16 else torch.float16
-    print(f"\nPrecision: {'bf16' if use_bf16 else 'fp16'} "
-          f"(CUDA capability {torch.cuda.get_device_capability(0) if torch.cuda.is_available() else 'n/a'})")
+    cap = torch.cuda.get_device_capability(0) if torch.cuda.is_available() else "n/a"
+    print(f"\nPrecision: {'bf16' if use_bf16 else 'fp16'} (CUDA capability {cap})")
 
     print("\n[1/5] Loading dataset...")
     data_path = resolve_dataset_path()
@@ -145,7 +153,7 @@ def main():
         quantization_config=bnb_config,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=compute_dtype,
+        dtype=compute_dtype,  # newer transformers prefer dtype= over torch_dtype=
     )
     model = prepare_model_for_kbit_training(model)
 
@@ -162,9 +170,11 @@ def main():
         ],
     )
     model = get_peft_model(model, lora_config)
+    force_trainable_fp32(model)
     model.print_trainable_parameters()
 
     print("\n[4/5] Setting up trainer...")
+    # T4: fp16=True only; never bf16. Avoid paged optim issues → adamw_torch.
     common = dict(
         output_dir=OUTPUT_DIR,
         num_train_epochs=NUM_EPOCHS,
@@ -173,12 +183,13 @@ def main():
         learning_rate=LEARNING_RATE,
         logging_steps=5,
         save_strategy="epoch",
-        fp16=not use_bf16,
+        fp16=(not use_bf16),
         bf16=use_bf16,
-        optim="paged_adamw_8bit",
+        optim="adamw_torch",
         lr_scheduler_type="cosine",
         report_to="none",
-        max_grad_norm=0.3,
+        max_grad_norm=1.0,
+        gradient_checkpointing=True,
     )
 
     if USE_SFT_CONFIG:
@@ -205,6 +216,10 @@ def main():
             packing=False,
             dataset_text_field="text",
         )
+
+    # Ensure gradient checkpointing works with PEFT
+    if hasattr(model, "enable_input_require_grads"):
+        model.enable_input_require_grads()
 
     print("\n[5/5] Starting training...")
     trainer.train()
