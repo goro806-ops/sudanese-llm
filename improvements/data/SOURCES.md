@@ -1,69 +1,105 @@
 # External Sudanese Dialect Sources
 
-Guide for scaling data beyond our curated batches.  
-Goal: authentic multi-regional Sudanese Arabic for any LLM.
+Prioritized for **sudanese-llm** goal: any LLM handles multi-regional Sudanese Arabic inputs/outputs well.
+
+Updated from research notes (Google AI Mode / dialect sources PDF, Oct 2026) + live HF checks.
 
 ---
 
-## Priority sources (text / LLM)
+## Tier A — Use next (text LLM fine-tune)
 
-### 1. ArSyra Sudanese (highest priority for scale)
-- **What:** ~14,167 records, quality-scored, MSA↔dialect pairs, 18 categories
-- **Where:** [Hugging Face](https://huggingface.co/datasets/ArSyra/arsyra-sudanese) · [Kaggle](https://www.kaggle.com/datasets/aqlomate/arsyra-sudanese)
-- **License:** CC-BY-NC-SA-4.0 (non-commercial share-alike — check before commercial use)
-- **Why useful:** Largest dedicated Sudanese set with verified native-speaker style data
-- **How to use:** Accept HF terms → download → run `scripts/import_external.py --source arsyra --input path/to/file.jsonl`
+| Source | Size / type | How to use | License caution |
+|--------|-------------|------------|-----------------|
+| **ArSyra/arsyra-sudanese** | ~14K quality-scored records, MSA↔dialect | `import_external.py --source arsyra` | CC-BY-NC-SA (non-commercial) |
+| **O96a/sudanese-mt-benchmark** | Small but gold MT pairs + dialect markers (`يا زول`, etc.) | Map `source`→assistant, EN→user translation turns | CC-BY-4.0 |
+| **Lisan Sudanese** (Birzeit Currasat) | ~52K morph tokens, social media | Vocab + normalization seed | Check portal |
+| **Sudanese-Flores** | ~2K parallel sentences | Translation chat turns | Research |
+| **Our batches 1–7** | ~126 curated multi-turn, 5 regions | Primary quality signal | Project-owned |
 
-### 2. Lisan Sudanese (Birzeit / Currasat)
-- **What:** ~52K morphologically annotated tokens (Facebook/YouTube)
-- **Where:** [Currasat portal](https://sina.birzeit.edu/currasat/about-en.html) · [arXiv](https://arxiv.org/abs/2212.06468)
-- **License:** Check portal (often CC BY for research)
-- **Why useful:** Real social-media orthography, lemmas, glosses → vocabulary & normalization
-- **How to use:** Export text → convert lines into short user/assistant pairs or knowledge entries
-
-### 3. Sudanese-Flores
-- **What:** ~2,009 sentences (DEV + DEVTEST) MSA/EN ↔ Sudanese (Khartoum-centric)
-- **Where:** Search "Sudanese-Flores" / OpenReview / related MT benchmarks
-- **Why useful:** Clean parallel data for translation fine-tuning and eval
-- **How to use:** Map each pair to a `translation` topic conversation
-
-### 4. Community / open GitHub
-| Project | Notes |
-|---------|--------|
-| [Sudaverse](https://github.com/sudaverse) | Ecosystem: normalizer, corpus tools, synthetic generators |
-| [AnwarCS/Sudanese-Arabic-LLM](https://github.com/AnwarCS/Sudanese-Arabic-AI-Dataset) | Collaborative dataset + fine-tune intent |
-| [ombabiker89-collab/sudanese-dialect-corpus](https://github.com/ombabiker89-collab/sudanese-dialect-corpus) | Small conversational focus; similar goals |
+```python
+from datasets import load_dataset
+# Example (after accepting HF terms where required)
+ds = load_dataset("O96a/sudanese-mt-benchmark", split="test")
+```
 
 ---
 
-## Speech (later — not required for text LLM goal)
+## Tier B — Scale / speech transcripts (later or ASR)
 
-- Zenodo Sudanese dialect speech (~4h, Khartoum-leaning)
-- HF: `arbml/sudanese_dialect_speech`, Ahmed Gobara ~19h single-speaker
-- Commercial: larger hour-count sets (SPEECH-DATA.AI etc.)
+| Source | Notes |
+|--------|--------|
+| **oddadmix/arabic-audio-collection-sudanese-sudan-podcast** | ~27K chunks, podcast transcripts — lively spoken Sudanese |
+| **oddadmix/...-ahmed-gobara** | ~19h single-speaker + text |
+| **Zenodo Sudanese dialect speech** | TV/dialogue orthography without full diacritics |
+| **Sudaverse** (github.com/O96a/sudaverse) | Normalizer, synthetic generators, ecosystem |
 
-Useful for ASR/TTS later; transcripts can feed text after cleanup.
-
----
-
-## Nubian / Rotana
-
-Very little public text data.  
-Plan: community contribution + our northern batches + optional collaboration with Nubian language projects (Kenya Nubi Common Voice is a different variety — use carefully).
+Transcripts can become chat data after cleaning; audio itself is for ASR/TTS.
 
 ---
 
-## Recommended pipeline
+## Tier C — Learning books (manual extract / fair use excerpts)
 
-1. Keep expanding our `conversations_batch*.jsonl` (controlled quality).
-2. Import ArSyra (or sample) → convert with `import_external.py` → merge.
-3. Score with `evaluation/eval_set_v1.json` + rubric.
-4. Native-speaker review of a random sample before calling the goal reached.
+| Resource | Why useful |
+|----------|------------|
+| **Sudanese Colloquial Arabic for Beginners** (Persson & Persson, SIL) | Structured Khartoum dialogues — gold for few-shot |
+| **Concise Dictionary** Sudanese Arabic↔English (Tamis & Persson, SIL) | Vocab pairs → translation / definition turns |
+| **Sudan Arabic: An English-Arabic Vocabulary** (older) | Historical lexicon |
+| Academic: عجب الفيا، بشير إبراهيم بشير، مجلة الدراسات السودانية | Etymology / authenticity |
+
+Not bulk-scrapable; use for curated examples and eval design.
 
 ---
 
-## License caution
+## Tier D — Platforms (inspiration, not dumps)
 
-- **CC-BY-NC-SA:** fine for research / non-commercial demos; not for unrestricted commercial products without permission.
-- Always keep original attribution and a note in any derived training set.
-- Our own batches are project-owned; keep them separate from NC-licensed merges if needed.
+- Speak Sudanese / OpenArabic — phrase banks with audio  
+- Talk In Arabic — video situational paths  
+- ArabicNLP.uk poetry corpus — cultural tokens (multi-dialect; filter Sudanese carefully)
+
+---
+
+## Linguistic layers (from PDF — inform prompts & tags)
+
+Sudanese colloquial draws from:
+
+1. **Classical Arabic** — retained older forms  
+2. **Nubian** — north (مسكاقمي، إسي، إكسي…)  
+3. **Beja / Cushitic** — east  
+4. **Darfur / W. African contact**  
+5. **Turkish / admin loanwords** (historical)
+
+Keep **region tags** in training data; do not flatten to one “generic Sudanese.”
+
+---
+
+## What the PDF scraper ideas get right vs wrong
+
+**Right**
+- Prefer HF datasets over random site scrape  
+- Clean stretch letters (`كييييف` → `كيف`)  
+- Instruction format for fine-tune  
+- Colab for large downloads  
+
+**Wrong / risky for our goal**
+- Blind BeautifulSoup on random dictionary sites (brittle, ToS, noise)  
+- Feeding raw social text without native QA pairs → model learns noise  
+- Alpaca templates that put the same scrap as both input and output  
+- Scraping Facebook/X without official APIs and compliance  
+
+**Our pipeline instead**
+1. Curated multi-turn batches (quality)  
+2. Import ArSyra / MT benchmark via `import_external.py`  
+3. Optional: podcast **transcripts only**, cleaned  
+4. Retrain adapters → push HF  
+
+---
+
+## Recommended next actions
+
+1. Accept ArSyra terms if non-commercial use is OK → import 500–2000 rows  
+2. Convert `O96a/sudanese-mt-benchmark` into chat JSONL  
+3. Add 20–30 lines from Persson-style dialogues manually  
+4. Retrain `goro806/sudanese-qlora-adapters`  
+5. Re-run inference eval (target path to ≥4.2 native)
+
+See also: `scripts/import_external.py`, `conversations_batch*.jsonl`.
