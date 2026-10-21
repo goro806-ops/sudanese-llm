@@ -13,10 +13,10 @@ Any LLM understands/generates regionally accurate Sudanese Arabic (≥4.2/5 nati
 
 ## Phase 2 – Data 🔄 ROLL MODE
 
-- [x] Batches 1–9 (**~192 curated conversations**)
-- [x] Batch 8: O96a MT benchmark (markers: يا زول، شنو، حيجيلك…)
-- [x] Batch 9: denser multi-region (food, market, lexicon, multi-turn)
-- [x] SOURCES.md (ArSyra gated NC — skip until license OK)
+- [x] Batches 1–10 (**~215 curated conversations**)
+- [x] Batch 8: O96a MT markers
+- [x] Batch 9: food/market/lexicon
+- [x] Batch 10: multi-turn hard (taxi, family, wedding, dialect ID, regions)
 - [ ] 500+ high-quality turns
 - [ ] Native verification
 
@@ -24,14 +24,19 @@ Any LLM understands/generates regionally accurate Sudanese Arabic (≥4.2/5 nati
 
 ## Phase 3 – Model
 
-- [x] v1 adapters: https://huggingface.co/goro806/sudanese-qlora-adapters
-- [x] Inference ~3.7/5
-- [ ] **Retrain v2** after batches 8–9 merge
+- [x] v1: https://huggingface.co/goro806/sudanese-qlora-adapters (~3.7/5)
+- [ ] **Retrain v2** on batches 1–10 (~215)
 
 ---
 
-## Next roll options
+## Retrain v2 (Colab T4)
 
-1. Retrain v2 on full batch1–9 (~192)  
-2. More curated batches (target 300+)  
-3. ArSyra only after accepting HF gate + NC OK  
+```
+%cd /content/sudanese-llm
+!git pull
+!mkdir -p data/processed/llm_dataset
+!cat improvements/data/conversations_batch*.jsonl > data/processed/llm_dataset/sudanese_llm_chat.jsonl
+!wc -l data/processed/llm_dataset/sudanese_llm_chat.jsonl
+!python improvements/training/train_qlora.py
+# then re-upload to goro806/sudanese-qlora-adapters
+```
